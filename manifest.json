@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "Brave Web Highlighter & Notes",
+  "version": "1.2.0",
+  "description": "Highlight text, attach notes, and organize research papers with an Edge-style collapsible Side Panel. Works on all web pages and ePDF readers.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Web Highlighter & Notes"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/paperDetector.js", "content/anchor.js", "content/content.js"],
+      "css": ["content/content.css"],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ],
+  "commands": {
+    "highlight_selection": {
+      "suggested_key": {
+        "default": "Alt+H"
+      },
+      "description": "Highlight current text selection"
+    },
+    "toggle_sidebar": {
+      "suggested_key": {
+        "default": "Alt+S"
+      },
+      "description": "Toggle Side Panel on/off"
+    }
+  }
+}

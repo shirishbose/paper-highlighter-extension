@@ -1,0 +1,477 @@
+/* dashboard.css - Full dashboard layout */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #f1f5f9;
+  color: #1e293b;
+  min-height: 100vh;
+}
+
+.dashboard-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 290px;
+  background-color: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+
+.sidebar-brand h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.subtext {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* Stats */
+.stats-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background-color: #f8fafc;
+  padding: 12px 8px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-num {
+  font-size: 18px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Sidebar Sections */
+.sidebar-section h3 {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+
+.color-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.color-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.color-filter-btn:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.color-filter-btn.active {
+  background-color: #e0f2fe;
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.dot-all { background: linear-gradient(135deg, #facc15 0%, #38bdf8 50%, #ec4899 100%); }
+.dot-yellow { background: #facc15; }
+.dot-green  { background: #4ade80; }
+.dot-blue   { background: #38bdf8; }
+.dot-pink   { background: #f472b6; }
+.dot-orange { background: #fb923c; }
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #334155;
+  cursor: pointer;
+}
+
+/* Action Buttons */
+.export-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  text-decoration: none;
+}
+
+.secondary-btn {
+  background-color: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.secondary-btn:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.outline-btn {
+  background-color: #ffffff;
+  color: #2563eb;
+  border: 1px dashed #2563eb;
+}
+
+.outline-btn:hover {
+  background-color: #eff6ff;
+}
+
+.file-upload-label {
+  margin: 0;
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  padding: 32px 48px;
+  overflow-y: auto;
+}
+
+.content-header {
+  margin-bottom: 28px;
+}
+
+.search-bar-container {
+  position: relative;
+  max-width: 720px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+#dashboard-search-input {
+  width: 100%;
+  padding: 12px 14px 12px 44px;
+  font-size: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+#dashboard-search-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Feed & Cards */
+.pages-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 860px;
+}
+
+.dash-page-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.dash-page-header {
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dash-page-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  text-decoration: none;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.dash-page-title:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.dash-page-url {
+  font-size: 12px;
+  color: #64748b;
+  text-decoration: none;
+}
+
+.dash-delete-page-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.dash-delete-page-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.dash-page-highlights {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dash-hl-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: #ffffff;
+}
+
+.dash-hl-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.dash-color-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: capitalize;
+}
+
+.pill-yellow { background: #fef08a; color: #854d0e; }
+.pill-green  { background: #bbf7d0; color: #166534; }
+.pill-blue   { background: #bae6fd; color: #075985; }
+.pill-pink   { background: #fbcfe8; color: #9d174d; }
+.pill-orange { background: #fed7aa; color: #9a3412; }
+
+.dash-hl-quote {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1e293b;
+  border-left: 3px solid #cbd5e1;
+  padding-left: 12px;
+  margin-bottom: 10px;
+  font-style: italic;
+  word-break: break-word;
+}
+
+.dash-hl-comment-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.dash-hl-comment-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dash-comment-edit-area {
+  width: 100%;
+  min-height: 60px;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  margin-top: 6px;
+  display: none;
+}
+
+.dash-hl-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dash-hl-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.dash-hl-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.dash-hl-btn.delete-hl-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #64748b;
+}
+
+.empty-state.hidden {
+  display: none;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+/* Academic Paper tags in dashboard */
+.dash-paper-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.dash-paper-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.dash-paper-tag:hover {
+  background: #dcfce7;
+  color: #14532d;
+}
+
+.dash-pdf-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.dash-pdf-tag:hover {
+  background: #fee2e2;
+}
+
+.dash-paper-authors {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 3px;
+  font-style: italic;
+}

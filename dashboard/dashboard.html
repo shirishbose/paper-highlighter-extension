@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Library & Annotations - Brave Web Highlighter</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar / Header -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="../icons/icon48.png" alt="Logo" class="sidebar-logo">
+        <div>
+          <h2>Web Highlighter</h2>
+          <span class="subtext">Annotations & Library</span>
+        </div>
+      </div>
+
+      <div class="stats-container">
+        <div class="stat-card">
+          <span class="stat-num" id="stat-total-highlights">0</span>
+          <span class="stat-label">Highlights</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num" id="stat-total-notes">0</span>
+          <span class="stat-label">Notes</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num" id="stat-total-papers">0</span>
+          <span class="stat-label">Papers</span>
+        </div>
+      </div>
+
+      <!-- Color Filters -->
+      <div class="sidebar-section">
+        <h3>Filter by Color</h3>
+        <div class="color-filter-list">
+          <button class="color-filter-btn active" data-color="all">
+            <span class="color-dot dot-all"></span> All Colors
+          </button>
+          <button class="color-filter-btn" data-color="yellow">
+            <span class="color-dot dot-yellow"></span> Yellow
+          </button>
+          <button class="color-filter-btn" data-color="green">
+            <span class="color-dot dot-green"></span> Green
+          </button>
+          <button class="color-filter-btn" data-color="blue">
+            <span class="color-dot dot-blue"></span> Blue
+          </button>
+          <button class="color-filter-btn" data-color="pink">
+            <span class="color-dot dot-pink"></span> Pink
+          </button>
+          <button class="color-filter-btn" data-color="orange">
+            <span class="color-dot dot-orange"></span> Orange
+          </button>
+        </div>
+      </div>
+
+      <!-- Additional Filters -->
+      <div class="sidebar-section">
+        <h3>Filter by Type</h3>
+        <label class="checkbox-label">
+          <input type="checkbox" id="filter-has-notes">
+          <span>Only highlights with notes</span>
+        </label>
+        <label class="checkbox-label" style="margin-top: 8px;">
+          <input type="checkbox" id="filter-only-papers">
+          <span>Only research papers</span>
+        </label>
+      </div>
+
+      <!-- Export & Backup Actions -->
+      <div class="sidebar-section export-section">
+        <h3>Export &amp; Backup</h3>
+        <button id="btn-export-txt-dash" class="action-btn secondary-btn" style="background-color: #f0fdf4; color: #166534; border-color: #bbf7d0;">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+          </svg>
+          Download Notes as Text (.txt)
+        </button>
+        <button id="btn-export-bibtex-dash" class="action-btn secondary-btn" style="background-color: #faf5ff; color: #7e22ce; border-color: #e9d5ff;">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/>
+          </svg>
+          Export BibTeX (.bib)
+        </button>
+        <button id="btn-export-markdown" class="action-btn secondary-btn">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+          </svg>
+          Export to Markdown (.md)
+        </button>
+        <button id="btn-export-json" class="action-btn secondary-btn">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+          </svg>
+          Backup Database (JSON)
+        </button>
+        <label class="action-btn outline-btn file-upload-label">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+          </svg>
+          Restore Backup (JSON)
+          <input type="file" id="import-json-file" accept=".json" style="display: none;">
+        </label>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <header class="content-header">
+        <div class="search-bar-container">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+          </svg>
+          <input type="text" id="dashboard-search-input" placeholder="Search across all quotes, notes, websites...">
+        </div>
+      </header>
+
+      <!-- Empty State -->
+      <div id="dash-empty-state" class="empty-state hidden">
+        <div class="empty-icon">📖</div>
+        <h2>No highlights found</h2>
+        <p>Start browsing the web with Brave, select any text, and choose a color to save highlights and comments!</p>
+      </div>
+
+      <!-- Feed Container -->
+      <div id="pages-feed" class="pages-feed"></div>
+    </main>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
