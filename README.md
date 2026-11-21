@@ -14,12 +14,12 @@ Works identically on **Windows**, **Linux**, and **macOS**. No technical setup o
 Choose **Option A** (Easiest) or **Option B**:
 
 - **Option A (No Git needed)**:
-  1. Download the latest **`web-highlighter-extension-v1.2.0.zip`** from the [GitHub Releases page](https://github.com/REPLACE_WITH_YOUR_USERNAME/REPLACE_WITH_YOUR_REPO/releases).
+  1. Download the latest **`web-highlighter-extension-v1.2.0.zip`** from the [GitHub Releases page](https://github.com/shirishbose/paper-highlighter-extension/releases).
   2. Extract / Unzip the folder anywhere on your computer (e.g., `Documents` or `Downloads`).
 
 - **Option B (Using Git)**:
   ```bash
-  git clone https://github.com/REPLACE_WITH_YOUR_USERNAME/REPLACE_WITH_YOUR_REPO.git
+  git clone https://github.com/shirishbose/paper-highlighter-extension.git
   ```
 
 ---
