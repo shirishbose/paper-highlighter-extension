@@ -46,6 +46,16 @@ Choose **Option A** (Easiest) or **Option B**:
 
 ---
 
+### 🔄 Updating the Extension (for Git users)
+Whenever updates are published, pull the latest changes and reload:
+```bash
+cd paper-highlighter-extension
+git pull origin main
+```
+Then go to `brave://extensions` (or `chrome://extensions`) and click the 🔄 **Reload** button on the extension card. *(Your saved highlights and notes will remain completely safe).*
+
+---
+
 ## 🚀 How to Use
 
 ### 1. Highlight Text (Edge-Style Selection Mini-Menu)
