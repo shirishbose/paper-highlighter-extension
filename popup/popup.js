@@ -342,8 +342,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ${escapeHtml(page.title)}
               </a>
               <span class="hl-timestamp">
-                ${isPaper ? '<span class="page-paper-badge">PAPER</span> ' : ''}${new URL(page.url).hostname}
+                ${isPaper ? '<span class="page-paper-badge">PAPER</span> ' : ''}${(() => { try { return new URL(page.url).hostname; } catch(e) { return page.url || ''; } })()}
               </span>
+              <button class="card-btn-dl-txt" data-url="${escapeHtml(page.url)}" style="margin-left: 6px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; font-size: 10px; font-weight: 600; color: #166534; cursor: pointer; padding: 1px 6px;">
+                📥 Notes (.txt)
+              </button>
             </div>
             <span class="page-group-badge">${page.highlights.length} ${page.highlights.length === 1 ? 'highlight' : 'highlights'}</span>
           </div>
@@ -385,6 +388,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       `;
     }).join('');
+
+    // Attach text notes download listener
+    allPagesList.querySelectorAll('.card-btn-dl-txt').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const url = btn.dataset.url;
+        const page = allStoredPages.find(p => p.url === url);
+        if (page) {
+          const txt = buildTextForPages([page]);
+          downloadFile(txt, `notes_${sanitizeFilename(page.title || 'paper')}.txt`, 'text/plain;charset=utf-8');
+        }
+      });
+    });
   }
 
   // --- Scholar Library Tab ---
@@ -456,6 +472,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <button class="hl-paper-link-btn btn-copy-bibtex" data-bibtex="${escapeHtml(bibtex)}" style="cursor: pointer; background: #faf5ff; color: #7e22ce; border-color: #e9d5ff;">
                   📋 BibTeX
                 </button>
+                <button class="hl-paper-link-btn btn-dl-scholar-txt" data-url="${escapeHtml(item.url)}" style="cursor: pointer; background: #f0fdf4; color: #166534; border-color: #bbf7d0;">
+                  📥 Notes (.txt)
+                </button>
               </div>
             </div>
             <span class="page-group-badge">${item.highlights.length} ${item.highlights.length === 1 ? 'highlight' : 'highlights'}</span>
@@ -464,12 +483,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="page-group-items" style="margin-top: 8px;">
             ${item.highlights.map(hl => {
               const color = hl.color || 'yellow';
+              const quote = (hl.exact || hl.text || hl.quote || '').toString();
               return `
                 <div class="highlight-card">
                   <div class="hl-card-header">
                     <span class="color-dot-indicator hl-dot-${color}"></span>
                   </div>
-                  <div class="hl-card-quote">"${escapeHtml(hl.exact)}"</div>
+                  <div class="hl-card-quote">"${escapeHtml(quote)}"</div>
                   ${hl.comment ? `
                     <div class="hl-card-comment">
                       <span class="comment-icon">💬</span>
@@ -491,6 +511,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         navigator.clipboard.writeText(bib);
         btn.textContent = '✓ Copied!';
         setTimeout(() => { btn.textContent = '📋 BibTeX'; }, 1200);
+      });
+    });
+
+    // Attach text notes download listener
+    scholarPapersList.querySelectorAll('.btn-dl-scholar-txt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = btn.dataset.url;
+        const page = scholarPapers.find(p => p.url === url);
+        if (page) {
+          const txt = buildTextForPages([page]);
+          downloadFile(txt, `notes_${sanitizeFilename(page.title || 'paper')}.txt`, 'text/plain;charset=utf-8');
+        }
       });
     });
   }
@@ -679,16 +711,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         md += `\n`;
       }
 
-      p.highlights.forEach((hl) => {
-        md += `> ${hl.exact.replace(/\n/g, '\n> ')}\n\n`;
-        if (hl.comment && hl.comment.trim()) {
-          md += `**Note:** ${hl.comment}\n\n`;
-        }
-        if (hl.createdAt) {
-          md += `*Saved: ${new Date(hl.createdAt).toLocaleString()}*\n\n`;
-        }
-        md += `---\n\n`;
-      });
+      if (Array.isArray(p.highlights)) {
+        p.highlights.forEach((hl) => {
+          if (!hl) return;
+          const quote = (hl.exact || hl.text || hl.quote || '').toString();
+          const comment = (hl.comment || '').toString();
+          md += `> ${quote.replace(/\n/g, '\n> ')}\n\n`;
+          if (comment.trim()) {
+            md += `**Note:** ${comment}\n\n`;
+          }
+          if (hl.createdAt) {
+            md += `*Saved: ${new Date(hl.createdAt).toLocaleString()}*\n\n`;
+          }
+          md += `---\n\n`;
+        });
+      }
     });
     return md;
   }
@@ -736,15 +773,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (page.highlights && page.highlights.length > 0) {
         page.highlights.forEach((hl, hIdx) => {
+          if (!hl) return;
           const color = (hl.color || 'yellow').toUpperCase();
           const dateStr = hl.createdAt ? new Date(hl.createdAt).toLocaleString() : '';
+          const quote = (hl.exact || hl.text || hl.quote || '').toString();
+          const comment = (hl.comment || '').toString();
+
           txt += `  --- Highlight ${hIdx + 1} (${color}) ${dateStr ? `[${dateStr}]` : ''} ---\n`;
           txt += `  EXCERPT:\n`;
-          txt += `  "${hl.exact.replace(/\n/g, '\n  ')}"\n\n`;
+          txt += `  "${quote.replace(/\n/g, '\n  ')}"\n\n`;
 
-          if (hl.comment && hl.comment.trim()) {
+          if (comment.trim()) {
             txt += `  MY NOTE / COMMENT:\n`;
-            txt += `  ${hl.comment.replace(/\n/g, '\n  ')}\n\n`;
+            txt += `  ${comment.replace(/\n/g, '\n  ')}\n\n`;
           }
 
           if (hl.paper && hl.paper.paperUrl && hl.paper.paperUrl !== paperUrl) {
@@ -761,20 +802,75 @@ document.addEventListener('DOMContentLoaded', async () => {
     return txt;
   }
 
-  function downloadFile(content, filename, type) {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  function downloadFile(content, filename, type = 'text/plain;charset=utf-8') {
+    // Strategy 1: Dispatch via background script through chrome.downloads API
+    try {
+      if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({
+          action: "DOWNLOAD_FILE",
+          content: content,
+          filename: filename,
+          mimeType: type
+        }, (res) => {
+          if (chrome.runtime.lastError || !res || !res.success) {
+            fallbackDirectDownload(content, filename, type);
+          }
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn("Background download failed, using direct download:", e);
+    }
+
+    // Strategy 2: Fallback in popup
+    fallbackDirectDownload(content, filename, type);
+  }
+
+  function fallbackDirectDownload(content, filename, type) {
+    try {
+      // Use Data URI for plain text (avoids blob URL revocation issues)
+      if (content.length < 1500000) {
+        const base64Data = btoa(unescape(encodeURIComponent(content)));
+        const dataUrl = `data:${type};base64,${base64Data}`;
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          if (a.parentNode) a.parentNode.removeChild(a);
+        }, 1500);
+        return;
+      }
+    } catch (err) {
+      console.warn("Data URI failed, using Blob with delayed revocation:", err);
+    }
+
+    // Blob URL with 60s delayed revocation (never revoke immediately!)
+    try {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        try {
+          if (a.parentNode) a.parentNode.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (e) {}
+      }, 60000);
+    } catch (err) {
+      console.error("Direct download failed completely:", err);
+      alert("Download failed: " + err.message);
+    }
   }
 
   function sanitizeFilename(name) {
-    return name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase().slice(0, 30);
+    if (!name || typeof name !== 'string') return 'paper_notes';
+    const clean = name.replace(/[^a-z0-9_-]/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').toLowerCase().slice(0, 40);
+    return clean || 'paper_notes';
   }
 
   function escapeHtml(text) {

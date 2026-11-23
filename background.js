@@ -92,7 +92,7 @@ chrome.commands.onCommand.addListener((command) => {
   }
 });
 
-// Update badge count
+// Extension message dispatcher
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "UPDATE_BADGE") {
     const tabId = sender.tab ? sender.tab.id : null;
@@ -103,5 +103,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.action.setBadgeBackgroundColor({ tabId, color: "#2563EB" });
     }
     sendResponse({ success: true });
+    return false;
+  }
+
+  // Handle native file downloads via chrome.downloads API
+  if (message.action === "DOWNLOAD_FILE") {
+    const { content, filename, mimeType } = message;
+    try {
+      // Use data URL for reliable transfer
+      const base64Data = btoa(unescape(encodeURIComponent(content || '')));
+      const dataUrl = `data:${mimeType || 'text/plain;charset=utf-8'};base64,${base64Data}`;
+
+      if (chrome.downloads && chrome.downloads.download) {
+        chrome.downloads.download({
+          url: dataUrl,
+          filename: filename || 'notes.txt',
+          saveAs: false
+        }, (downloadId) => {
+          if (chrome.runtime.lastError) {
+            console.error('Download error:', chrome.runtime.lastError);
+            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          } else {
+            sendResponse({ success: true, downloadId });
+          }
+        });
+        return true; // Keep channel open for async response
+      } else {
+        sendResponse({ success: false, error: "chrome.downloads API not available" });
+        return false;
+      }
+    } catch (err) {
+      console.error('Download failed:', err);
+      sendResponse({ success: false, error: err.message });
+      return false;
+    }
   }
 });

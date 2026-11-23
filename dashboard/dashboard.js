@@ -187,8 +187,17 @@ document.addEventListener('DOMContentLoaded', () => {
                   <button class="dash-paper-tag btn-copy-bibtex-card" data-bibtex="${escapeHtml(bibtex)}" style="cursor: pointer; background-color: #faf5ff; color: #7e22ce; border-color: #e9d5ff;">
                     📋 Copy BibTeX
                   </button>
+                  <button class="dash-paper-tag btn-dl-txt-card" data-url="${escapeHtml(page.url)}" style="cursor: pointer; background-color: #f0fdf4; color: #166534; border-color: #bbf7d0;">
+                    📥 Download Notes (.txt)
+                  </button>
                 </div>
-              ` : ''}
+              ` : `
+                <div class="dash-paper-meta-row" style="margin-top: 6px;">
+                  <button class="dash-paper-tag btn-dl-txt-card" data-url="${escapeHtml(page.url)}" style="cursor: pointer; background-color: #f0fdf4; color: #166534; border-color: #bbf7d0;">
+                    📥 Download Notes (.txt)
+                  </button>
+                </div>
+              `}
             </div>
             <button class="dash-delete-page-btn" data-url="${escapeHtml(page.url)}" title="Delete all highlights for this page">
               <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
@@ -258,6 +267,19 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.clipboard.writeText(bib);
         btn.textContent = '✓ Copied!';
         setTimeout(() => { btn.textContent = '📋 Copy BibTeX'; }, 1200);
+      });
+    });
+
+    // Download single paper notes
+    pagesFeed.querySelectorAll('.btn-dl-txt-card').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = btn.dataset.url;
+        const page = allPagesData.find(p => p.url === url);
+        if (page) {
+          const txt = buildTextForPages([page]);
+          const safeTitle = (page.title || 'notes').replace(/[^a-z0-9_-]/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').toLowerCase().slice(0, 35) || 'paper_notes';
+          downloadBlob(txt, `notes_${safeTitle}.txt`, 'text/plain;charset=utf-8');
+        }
       });
     });
 
@@ -437,19 +459,24 @@ document.addEventListener('DOMContentLoaded', () => {
         md += `\n`;
       }
 
-      page.highlights.forEach(hl => {
-        md += `> ${hl.exact.replace(/\n/g, '\n> ')}\n\n`;
-        if (hl.comment && hl.comment.trim()) {
-          md += `**Note:** ${hl.comment}\n\n`;
-        }
-        if (hl.paper && hl.paper.paperUrl && hl.paper.paperUrl !== paperUrl) {
-          md += `*Paper Link: [${hl.paper.paperUrl}](${hl.paper.paperUrl})*\n\n`;
-        }
-        if (hl.createdAt) {
-          md += `*Saved: ${new Date(hl.createdAt).toLocaleString()}*\n\n`;
-        }
-        md += `---\n\n`;
-      });
+      if (Array.isArray(page.highlights)) {
+        page.highlights.forEach(hl => {
+          if (!hl) return;
+          const quote = (hl.exact || hl.text || hl.quote || '').toString();
+          const comment = (hl.comment || '').toString();
+          md += `> ${quote.replace(/\n/g, '\n> ')}\n\n`;
+          if (comment.trim()) {
+            md += `**Note:** ${comment}\n\n`;
+          }
+          if (hl.paper && hl.paper.paperUrl && hl.paper.paperUrl !== paperUrl) {
+            md += `*Paper Link: [${hl.paper.paperUrl}](${hl.paper.paperUrl})*\n\n`;
+          }
+          if (hl.createdAt) {
+            md += `*Saved: ${new Date(hl.createdAt).toLocaleString()}*\n\n`;
+          }
+          md += `---\n\n`;
+        });
+      }
     });
 
     downloadBlob(md, 'research_paper_highlights.md', 'text/markdown');
@@ -543,15 +570,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (page.highlights && page.highlights.length > 0) {
         page.highlights.forEach((hl, hIdx) => {
+          if (!hl) return;
           const color = (hl.color || 'yellow').toUpperCase();
           const dateStr = hl.createdAt ? new Date(hl.createdAt).toLocaleString() : '';
+          const quote = (hl.exact || hl.text || hl.quote || '').toString();
+          const comment = (hl.comment || '').toString();
+
           txt += `  --- Highlight ${hIdx + 1} (${color}) ${dateStr ? `[${dateStr}]` : ''} ---\n`;
           txt += `  EXCERPT:\n`;
-          txt += `  "${hl.exact.replace(/\n/g, '\n  ')}"\n\n`;
+          txt += `  "${quote.replace(/\n/g, '\n  ')}"\n\n`;
 
-          if (hl.comment && hl.comment.trim()) {
+          if (comment.trim()) {
             txt += `  MY NOTE / COMMENT:\n`;
-            txt += `  ${hl.comment.replace(/\n/g, '\n  ')}\n\n`;
+            txt += `  ${comment.replace(/\n/g, '\n  ')}\n\n`;
           }
 
           if (hl.paper && hl.paper.paperUrl && hl.paper.paperUrl !== paperUrl) {
@@ -568,16 +599,69 @@ document.addEventListener('DOMContentLoaded', () => {
     return txt;
   }
 
-  function downloadBlob(content, filename, mimeType) {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  function downloadBlob(content, filename, mimeType = 'text/plain;charset=utf-8') {
+    // Strategy 1: Dispatch via background script through chrome.downloads API
+    try {
+      if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({
+          action: "DOWNLOAD_FILE",
+          content: content,
+          filename: filename,
+          mimeType: mimeType
+        }, (res) => {
+          if (chrome.runtime.lastError || !res || !res.success) {
+            fallbackDirectDownload(content, filename, mimeType);
+          }
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn("Background download failed, using direct download:", e);
+    }
+
+    // Strategy 2: Fallback direct download
+    fallbackDirectDownload(content, filename, mimeType);
+  }
+
+  function fallbackDirectDownload(content, filename, mimeType) {
+    try {
+      // Use Data URI for standard text files (avoids blob revocation bug in Chromium)
+      if (content.length < 1500000) {
+        const base64Data = btoa(unescape(encodeURIComponent(content)));
+        const dataUrl = `data:${mimeType};base64,${base64Data}`;
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          if (a.parentNode) a.parentNode.removeChild(a);
+        }, 1500);
+        return;
+      }
+    } catch (err) {
+      console.warn("Data URI download failed, trying Blob:", err);
+    }
+
+    // Blob URL with 60s delayed revocation (never revoke synchronously!)
+    try {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        try {
+          if (a.parentNode) a.parentNode.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (e) {}
+      }, 60000);
+    } catch (err) {
+      console.error("Direct download failed entirely:", err);
+      alert("Download failed: " + err.message);
+    }
   }
 
   function escapeHtml(text) {
