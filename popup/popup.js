@@ -167,6 +167,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     currentHighlightsList.innerHTML = list.map(hl => {
       const color = hl.color || 'yellow';
+      const isCustomColor = typeof color === 'string' && color.startsWith('#');
+      const dotClass = isCustomColor ? '' : `hl-dot-${color}`;
+      const dotStyle = isCustomColor ? `style="background-color: ${color};"` : '';
       const formattedDate = hl.createdAt ? new Date(hl.createdAt).toLocaleDateString(undefined, {
         month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
       }) : '';
@@ -180,7 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `
         <div class="highlight-card" data-id="${hl.id}">
           <div class="hl-card-header">
-            <span class="color-dot-indicator hl-dot-${color}" title="Color: ${color}"></span>
+            <span class="color-dot-indicator ${dotClass}" ${dotStyle} title="Color: ${color}"></span>
             <span class="hl-timestamp">${formattedDate}</span>
             <div class="hl-card-actions">
               <button class="card-btn jump-btn" data-id="${hl.id}" title="Jump to highlight on page">

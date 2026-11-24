@@ -121,6 +121,38 @@ const WebHighlighterAnchor = (() => {
     return textNodes;
   }
 
+  function hexToRgba(hex, alpha = 0.72) {
+    if (!hex || typeof hex !== 'string') return `rgba(254, 240, 138, ${alpha})`;
+    let clean = hex.replace('#', '');
+    if (clean.length === 3) {
+      clean = clean.split('').map(c => c + c).join('');
+    }
+    if (clean.length !== 6) return hex;
+    const num = parseInt(clean, 16);
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function applyMarkColor(mark, colorToApply) {
+    if (!mark) return;
+    mark.dataset.color = colorToApply;
+    const standardColors = ['yellow', 'green', 'blue', 'purple', 'pink', 'orange', 'red', 'teal'];
+    standardColors.forEach(c => mark.classList.remove(`web-hl-color-${c}`));
+    mark.classList.remove('web-hl-custom-color');
+
+    if (standardColors.includes(colorToApply)) {
+      mark.classList.add(`web-hl-color-${colorToApply}`);
+      mark.style.removeProperty('background-color');
+      mark.style.removeProperty('border-bottom');
+    } else {
+      mark.classList.add('web-hl-custom-color');
+      mark.style.setProperty('background-color', hexToRgba(colorToApply, 0.72), 'important');
+      mark.style.setProperty('border-bottom', 'none', 'important');
+    }
+  }
+
   // Wrap target range in highlight marks with accurate node slicing
   function wrapRange(range, highlightId, color) {
     const textNodes = getTextNodesInRange(range);
@@ -137,15 +169,14 @@ const WebHighlighterAnchor = (() => {
       const parent = targetNode.parentNode;
       if (parent && parent.classList && parent.classList.contains('web-hl-mark')) {
         parent.dataset.hlId = highlightId;
-        parent.dataset.color = color;
-        parent.className = `web-hl-mark web-hl-color-${color}`;
+        applyMarkColor(parent, color);
         return parent;
       }
 
       const mark = document.createElement('mark');
-      mark.className = `web-hl-mark web-hl-color-${color}`;
+      mark.className = 'web-hl-mark';
       mark.dataset.hlId = highlightId;
-      mark.dataset.color = color;
+      applyMarkColor(mark, color);
 
       parent.insertBefore(mark, targetNode);
       parent.removeChild(targetNode);
@@ -409,7 +440,9 @@ const WebHighlighterAnchor = (() => {
     createAnchor,
     wrapRange,
     restoreHighlight,
-    removeHighlightFromDOM
+    removeHighlightFromDOM,
+    applyMarkColor,
+    hexToRgba
   };
 })();
 

@@ -132,8 +132,14 @@
           <button class="web-hl-edge-dot hl-yellow" data-color="yellow" title="Yellow"></button>
           <button class="web-hl-edge-dot hl-green" data-color="green" title="Green"></button>
           <button class="web-hl-edge-dot hl-blue" data-color="blue" title="Blue"></button>
+          <button class="web-hl-edge-dot hl-purple" data-color="purple" title="Purple"></button>
           <button class="web-hl-edge-dot hl-pink" data-color="pink" title="Pink"></button>
           <button class="web-hl-edge-dot hl-orange" data-color="orange" title="Orange"></button>
+          <button class="web-hl-edge-dot hl-red" data-color="red" title="Red"></button>
+          <button class="web-hl-edge-dot hl-teal" data-color="teal" title="Teal"></button>
+          <button class="web-hl-colorwheel-btn" title="Pick custom color">
+            <input type="color" class="web-hl-colorwheel-picker" value="#a855f7" style="position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;" />
+          </button>
         </div>
         <div class="web-hl-edge-divider"></div>
         <button class="web-hl-edge-btn btn-comment" title="Add / View Note">
@@ -171,6 +177,32 @@
           performHighlight(color);
         }
       });
+    });
+
+    // Custom colorwheel picker
+    const colorwheelBtn = edgeMenu.querySelector('.web-hl-colorwheel-btn');
+    const colorPicker = edgeMenu.querySelector('.web-hl-colorwheel-picker');
+
+    colorwheelBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      colorPicker.click();
+    });
+
+    colorPicker.addEventListener('input', (e) => {
+      const chosenColor = e.target.value;
+      if (currentTargetHighlight) {
+        changeHighlightColor(currentTargetHighlight.id, chosenColor);
+      }
+    });
+
+    colorPicker.addEventListener('change', (e) => {
+      const chosenColor = e.target.value;
+      if (currentTargetHighlight) {
+        changeHighlightColor(currentTargetHighlight.id, chosenColor);
+      } else if (activeSelectionRange) {
+        performHighlight(chosenColor);
+      }
     });
 
     // Toggle inline comment drawer
@@ -290,6 +322,35 @@
     showEdgeMenuForSelection(range);
   }
 
+  function updateMenuColorSelection(selectedColor) {
+    if (!edgeMenu) return;
+    const standardColors = ['yellow', 'green', 'blue', 'purple', 'pink', 'orange', 'red', 'teal'];
+    const dots = edgeMenu.querySelectorAll('.web-hl-edge-dot');
+    const wheelBtn = edgeMenu.querySelector('.web-hl-colorwheel-btn');
+    const picker = edgeMenu.querySelector('.web-hl-colorwheel-picker');
+
+    dots.forEach(d => {
+      if (d.dataset.color === selectedColor) {
+        d.classList.add('active-selected');
+      } else {
+        d.classList.remove('active-selected');
+      }
+    });
+
+    if (wheelBtn) {
+      if (selectedColor && !standardColors.includes(selectedColor)) {
+        wheelBtn.classList.add('active-selected');
+        wheelBtn.style.setProperty('--custom-color', selectedColor);
+        if (picker) picker.value = selectedColor;
+        wheelBtn.title = `Custom color: ${selectedColor} (click to change)`;
+      } else {
+        wheelBtn.classList.remove('active-selected');
+        wheelBtn.style.removeProperty('--custom-color');
+        wheelBtn.title = 'Pick custom color';
+      }
+    }
+  }
+
   function showEdgeMenuForSelection(range) {
     if (!range) return;
     const rect = range.getBoundingClientRect();
@@ -307,7 +368,7 @@
     const commentDrawer = edgeMenu.querySelector('.web-hl-edge-comment-drawer');
     commentDrawer.style.display = 'none';
 
-    edgeMenu.querySelectorAll('.web-hl-edge-dot').forEach(d => d.classList.remove('active-selected'));
+    updateMenuColorSelection(null);
 
     positionMenuNearRect(rect);
   }
@@ -323,13 +384,7 @@
     deleteBtn.style.display = 'flex';
 
     // Mark current color active
-    edgeMenu.querySelectorAll('.web-hl-edge-dot').forEach(d => {
-      if (d.dataset.color === hl.color) {
-        d.classList.add('active-selected');
-      } else {
-        d.classList.remove('active-selected');
-      }
-    });
+    updateMenuColorSelection(hl.color);
 
     const commentBtn = edgeMenu.querySelector('.btn-comment');
     const commentDrawer = edgeMenu.querySelector('.web-hl-edge-comment-drawer');
@@ -352,7 +407,7 @@
     const scrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
     const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
 
-    const menuWidth = 230;
+    const menuWidth = 350;
     const menuHeight = 36;
 
     // Horizontally aligned with selection
@@ -430,15 +485,18 @@
 
     const marks = document.querySelectorAll(`mark[data-hl-id="${highlightId}"]`);
     marks.forEach(m => {
-      m.dataset.color = newColor;
-      m.className = `web-hl-mark web-hl-color-${newColor}${m.classList.contains('web-hl-has-comment') ? ' web-hl-has-comment' : ''}`;
+      if (window.WebHighlighterAnchor && window.WebHighlighterAnchor.applyMarkColor) {
+        window.WebHighlighterAnchor.applyMarkColor(m, newColor);
+      } else {
+        m.dataset.color = newColor;
+        m.className = `web-hl-mark web-hl-color-${newColor}`;
+      }
+      if (hl.comment && hl.comment.trim().length > 0) {
+        m.classList.add('web-hl-has-comment');
+      }
     });
 
-    edgeMenu.querySelectorAll('.web-hl-edge-dot').forEach(d => {
-      if (d.dataset.color === newColor) d.classList.add('active-selected');
-      else d.classList.remove('active-selected');
-    });
-
+    updateMenuColorSelection(newColor);
     saveHighlightsToStorage(currentHighlights); // AUTO-SAVED!
   }
 

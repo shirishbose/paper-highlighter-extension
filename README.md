@@ -14,7 +14,7 @@ Works identically on **Windows**, **Linux**, and **macOS**. No technical setup o
 Choose **Option A** (Easiest) or **Option B**:
 
 - **Option A (No Git needed)**:
-  1. Download the latest **`web-highlighter-extension-v1.2.0.zip`** from the [GitHub Releases page](https://github.com/shirishbose/paper-highlighter-extension/releases).
+  1. Download the latest **`web-highlighter-extension-v1.3.0.zip`** from the [GitHub Releases page](https://github.com/shirishbose/paper-highlighter-extension/releases).
   2. Extract / Unzip the folder anywhere on your computer (e.g., `Documents` or `Downloads`).
 
 - **Option B (Using Git)**:
@@ -58,14 +58,14 @@ Then go to `brave://extensions` (or `chrome://extensions`) and click the 🔄 **
 
 ## 🚀 How to Use
 
-### 1. Highlight Text (Edge-Style Selection Mini-Menu)
+### 1. Highlight Text (Web Highlights & Edge-Style Mini-Menu)
 - Drag your mouse to select any text on any webpage or paper.
-- A floating mini-menu pops up automatically right above your selection.
-- Click any color dot (`🟡 Yellow`, `🟢 Green`, `🔵 Blue`, `🟣 Pink`, `🟠 Orange`):
-  - Text highlights instantly.
-  - **Auto-saved immediately** to local storage.
-  - **Options expand**: The `🗑️ Delete` button appears, allowing you to delete the highlight in 1 click.
-  - **Change color**: Click any other color dot to switch colors on the fly.
+- A floating mini-menu pops up automatically right above your selection with **tactile 3D color buttons**.
+- The highlighted text on the webpage appears in a clean, flat **2D marker style** (without distracting shaded bottom borders).
+- Choose from **8 preset colors** (`🟡 Yellow`, `🟢 Green`, `🔵 Blue`, `🟣 Purple`, `🌸 Pink`, `🟠 Orange`, `🔴 Red`, `🔷 Teal`) or pick any custom hex shade using the **🎨 3D Color Wheel**.
+- **Instant Color Switch**: Click on any existing highlight on a page and tap another color dot or choose a new shade on the color wheel to switch colors instantly.
+- **Auto-Saved Immediately**: Every highlight and color change is preserved in local storage.
+- **1-Click Deletion & Notes**: Click `🗑️ Delete` or `💬 Note` to manage your annotations.
 
 ### 2. Add Comments & Notes
 - Click the `💬 Note` button in the floating menu.

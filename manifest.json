@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Brave Web Highlighter & Notes",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Highlight text, attach notes, and organize research papers with an Edge-style collapsible Side Panel. Works on all web pages and ePDF readers.",
   "icons": {
     "16": "icons/icon16.png",

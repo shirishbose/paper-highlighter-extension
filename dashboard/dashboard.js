@@ -216,10 +216,15 @@ document.addEventListener('DOMContentLoaded', () => {
               const hlPaperUrl = (hlPaper && hlPaper.paperUrl) ? hlPaper.paperUrl : '';
               const hlPdfUrl = (hlPaper && hlPaper.pdfUrl) ? hlPaper.pdfUrl : '';
 
+              const isCustom = typeof color === 'string' && color.startsWith('#');
+              const pillHtml = isCustom
+                ? `<span class="dash-color-pill" style="background: ${color}26; color: ${color}; border: 1px solid ${color}66;">Custom</span>`
+                : `<span class="dash-color-pill pill-${color}">${color}</span>`;
+
               return `
                 <div class="dash-hl-item" data-id="${hl.id}" data-url="${escapeHtml(page.url)}">
                   <div class="dash-hl-meta">
-                    <span class="dash-color-pill pill-${color}">${color}</span>
+                    ${pillHtml}
                     <span style="font-size: 11px; color: #94a3b8;">${dateStr}</span>
                   </div>
                   <div class="dash-hl-quote">"${escapeHtml(hl.exact)}"</div>

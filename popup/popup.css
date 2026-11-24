@@ -308,8 +308,11 @@ kbd {
 .hl-dot-yellow { background: #eab308; }
 .hl-dot-green  { background: #22c55e; }
 .hl-dot-blue   { background: #0284c7; }
+.hl-dot-purple { background: #a855f7; }
 .hl-dot-pink   { background: #ec4899; }
 .hl-dot-orange { background: #f97316; }
+.hl-dot-red    { background: #ef4444; }
+.hl-dot-teal   { background: #14b8a6; }
 
 .hl-timestamp {
   font-size: 10px;
