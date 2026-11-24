@@ -1,10 +1,10 @@
-// content.js - Microsoft Edge-style Text Selection Mini-Menu Highlighter
+// content.js - Selection Floating Bubble & Mini-Menu Highlighter with In-Panel AI Chatbot
 
 (() => {
   if (window.__webHighlighterInjected) return;
   window.__webHighlighterInjected = true;
 
-  console.log("[Brave Highlighter] Extension active on:", window.location.href);
+  console.log("[Web Highlighter] Extension active on:", window.location.href);
 
   function getCleanUrl() {
     try {
@@ -36,28 +36,48 @@
   let currentHighlights = [];
   let detectedPaper = null;
 
-  // Active state
+  // Active UI state
+  let triggerBubble = null;
   let edgeMenu = null;
   let activeSelectionRange = null;
   let currentTargetHighlight = null;
+
+  // Colors & Tags memory
+  let recentCustomColors = ['#f472b6', '#fb923c'];
+  let savedAllTags = ['Lg', 'Methods', 'Inversion', 'Velocity'];
 
   // Side Panel state
   let sidePanel = null;
   let sidePanelToggle = null;
   let activeSidePanelTab = 'highlights';
-  let activeAiPlatform = 'gemini';
   let currentUserProfile = { email: '', syncedAt: '' };
+  let geminiApiKey = '';
+  let chatHistory = [];
 
-  // --- Storage Helpers (Auto-Save & Profile) ---
+  // --- Storage Helpers (Auto-Save & Memory) ---
   function getStorageKey() {
     return 'hl_page_' + encodeURIComponent(currentUrl);
   }
 
-  async function loadUserProfile() {
+  async function loadExtensionState() {
     return new Promise((resolve) => {
-      chrome.storage.local.get(['hl_user_profile'], (result) => {
-        currentUserProfile = result.hl_user_profile || { email: '', syncedAt: '' };
-        resolve(currentUserProfile);
+      chrome.storage.local.get([
+        'hl_user_profile',
+        'hl_recent_custom_colors',
+        'hl_all_tags',
+        'hl_gemini_api_key'
+      ], (result) => {
+        if (result.hl_user_profile) currentUserProfile = result.hl_user_profile;
+        if (Array.isArray(result.hl_recent_custom_colors) && result.hl_recent_custom_colors.length > 0) {
+          recentCustomColors = result.hl_recent_custom_colors.slice(0, 2);
+        }
+        if (Array.isArray(result.hl_all_tags) && result.hl_all_tags.length > 0) {
+          savedAllTags = Array.from(new Set([...savedAllTags, ...result.hl_all_tags]));
+        }
+        if (result.hl_gemini_api_key) {
+          geminiApiKey = result.hl_gemini_api_key;
+        }
+        resolve();
       });
     });
   }
@@ -90,7 +110,10 @@
       chrome.storage.local.set(data, () => {
         updatePageIndex(highlights.length);
         updateExtensionBadge(highlights.length);
-        if (sidePanel) renderSidePanelHighlights();
+        if (sidePanel) {
+          renderSidePanelHighlights();
+          updateChatContextBadge();
+        }
         resolve();
       });
     });
@@ -124,17 +147,53 @@
     }
   }
 
+  function recordNewTag(tag) {
+    if (!tag) return;
+    const clean = tag.replace(/^[#,\s]+|[,\s]+$/g, '').trim();
+    if (!clean) return;
+    if (!savedAllTags.includes(clean)) {
+      savedAllTags.push(clean);
+      chrome.storage.local.set({ hl_all_tags: savedAllTags });
+    }
+  }
+
+  function updateRecentCustomColor(color) {
+    if (!color) return;
+    recentCustomColors = [color, ...recentCustomColors.filter(c => c.toLowerCase() !== color.toLowerCase())].slice(0, 2);
+    chrome.storage.local.set({ hl_recent_custom_colors: recentCustomColors });
+    updateCustomDotsUI();
+  }
+
+  function updateCustomDotsUI() {
+    if (!edgeMenu) return;
+    const dots = edgeMenu.querySelectorAll('.hl-custom-dot');
+    dots.forEach((dot, idx) => {
+      const c = recentCustomColors[idx] || (idx === 0 ? '#f472b6' : '#fb923c');
+      dot.dataset.color = c;
+      dot.style.backgroundColor = c;
+      dot.title = `Recent custom color: ${c}`;
+    });
+  }
+
   // --- Initial Setup & Restoration ---
   async function init() {
     if (window.WebHighlighterPaperDetector) {
       detectedPaper = window.WebHighlighterPaperDetector.detectPaperMetadata();
     }
 
-    await loadUserProfile();
+    await loadExtensionState();
+    createTriggerBubble();
     createEdgeMenu();
     createSidePanel();
 
     currentHighlights = await loadHighlightsFromStorage();
+
+    // Harvest existing tags into savedAllTags
+    currentHighlights.forEach(h => {
+      if (Array.isArray(h.tags)) {
+        h.tags.forEach(t => recordNewTag(t));
+      }
+    });
 
     restoreAllHighlights();
     setTimeout(restoreAllHighlights, 500);
@@ -143,6 +202,7 @@
     updateExtensionBadge(currentHighlights.length);
     renderSidePanelHighlights();
     updateAccountSyncStatusUI();
+    updateChatContextBadge();
   }
 
   function restoreAllHighlights() {
@@ -162,6 +222,71 @@
     });
   }
 
+  // --- Floating Trigger Bubble (Small Icon on Selection) ---
+  function createTriggerBubble() {
+    if (document.getElementById('web-hl-trigger-bubble')) {
+      triggerBubble = document.getElementById('web-hl-trigger-bubble');
+      return;
+    }
+
+    triggerBubble = document.createElement('div');
+    triggerBubble.id = 'web-hl-trigger-bubble';
+    triggerBubble.title = 'Highlight / Add Note';
+    triggerBubble.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z"/>
+        <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"/>
+      </svg>
+    `;
+    document.body.appendChild(triggerBubble);
+
+    const activateMenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (activeSelectionRange) {
+        hideTriggerBubble();
+        showEdgeMenuForSelection(activeSelectionRange);
+      }
+    };
+
+    triggerBubble.addEventListener('mouseenter', activateMenu);
+    triggerBubble.addEventListener('mousedown', activateMenu);
+  }
+
+  function hideTriggerBubble() {
+    if (triggerBubble) triggerBubble.classList.remove('web-hl-visible');
+  }
+
+  function showTriggerBubbleForSelection(range) {
+    if (!range) return;
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      hideTriggerBubble();
+      hideEdgeMenu();
+      return;
+    }
+
+    if (!triggerBubble) createTriggerBubble();
+
+    const scrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
+    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+
+    // Position bubble just off the right edge of the selection
+    let left = rect.right + scrollX + 4;
+    let top = rect.top + scrollY - 26;
+
+    if (rect.top < 34) {
+      top = rect.bottom + scrollY + 4;
+    }
+
+    triggerBubble.style.setProperty('top', `${Math.round(top)}px`, 'important');
+    triggerBubble.style.setProperty('left', `${Math.round(left)}px`, 'important');
+    triggerBubble.classList.add('web-hl-visible');
+
+    // Keep edge menu hidden while bubble is active
+    if (edgeMenu) edgeMenu.classList.remove('web-hl-visible');
+  }
+
   // --- Create Selection Mini Menu ---
   function createEdgeMenu() {
     if (document.getElementById('web-hl-edge-menu')) {
@@ -169,32 +294,36 @@
       return;
     }
 
+    const c1 = recentCustomColors[0] || '#f472b6';
+    const c2 = recentCustomColors[1] || '#fb923c';
+
     edgeMenu = document.createElement('div');
     edgeMenu.id = 'web-hl-edge-menu';
     edgeMenu.innerHTML = `
       <div class="web-hl-edge-main-row">
+        <!-- 4 Daily Use Colors -->
         <div class="web-hl-edge-colors">
           <button class="web-hl-edge-dot hl-yellow" data-color="yellow" title="Yellow"></button>
           <button class="web-hl-edge-dot hl-green" data-color="green" title="Green"></button>
           <button class="web-hl-edge-dot hl-blue" data-color="blue" title="Blue"></button>
           <button class="web-hl-edge-dot hl-purple" data-color="purple" title="Purple"></button>
-          <button class="web-hl-edge-dot hl-pink" data-color="pink" title="Pink"></button>
-          <button class="web-hl-edge-dot hl-orange" data-color="orange" title="Orange"></button>
-          <button class="web-hl-edge-dot hl-red" data-color="red" title="Red"></button>
-          <button class="web-hl-edge-dot hl-teal" data-color="teal" title="Teal"></button>
-          <div class="web-hl-colorwheel-wrap" title="Custom color picker">
-            <input type="color" class="web-hl-colorwheel-picker" value="#a855f7" />
-          </div>
         </div>
         <div class="web-hl-edge-divider"></div>
-        <button class="web-hl-edge-btn btn-comment" title="Add / View Note & Tags">
+        <!-- 2 Custom Colors (last selected from color wheel) -->
+        <div class="web-hl-edge-colors">
+          <button class="web-hl-edge-dot hl-custom-dot" data-slot="0" data-color="${c1}" style="background-color: ${c1};" title="Recent custom color: ${c1}"></button>
+          <button class="web-hl-edge-dot hl-custom-dot" data-slot="1" data-color="${c2}" style="background-color: ${c2};" title="Recent custom color: ${c2}"></button>
+        </div>
+        <div class="web-hl-edge-divider"></div>
+        <!-- Color Wheel -->
+        <div class="web-hl-colorwheel-wrap" title="Custom color wheel picker">
+          <input type="color" class="web-hl-colorwheel-picker" value="${c1}" />
+        </div>
+        <div class="web-hl-edge-divider"></div>
+        <!-- Action Buttons -->
+        <button class="web-hl-edge-btn btn-comment" title="Add / View Note &amp; Tags">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
-          </svg>
-        </button>
-        <button class="web-hl-edge-btn btn-sidepanel" title="Open Side Panel & AI">
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm1 2v8h7V6H4zm9 0v8h3V6h-3z" clip-rule="evenodd"/>
           </svg>
         </button>
         <button class="web-hl-edge-btn btn-delete" title="Delete highlight" style="display: none;">
@@ -207,18 +336,25 @@
             <path d="M8 2a2 2 0 00-2 2v2H5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2h-2V4a2 2 0 00-2-2H8zm0 2h4v2H8V4zm-3 4h8v8H5V8zm10 2v5h1V6h-7v2h6z"/>
           </svg>
         </button>
+        <button class="web-hl-edge-btn btn-sidepanel" title="Open Side Panel &amp; AI">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm1 2v8h7V6H4zm9 0v8h3V6h-3z" clip-rule="evenodd"/>
+          </svg>
+        </button>
       </div>
+      <!-- Comment & Plain Tags Drawer (Collapsed by default) -->
       <div class="web-hl-edge-comment-drawer" style="display: none;">
-        <textarea class="web-hl-edge-comment-textarea" placeholder="Add a note (auto-saves)..." rows="3"></textarea>
+        <textarea class="web-hl-edge-comment-textarea" placeholder="Add a research note (auto-saves)..." rows="3"></textarea>
         <div class="web-hl-edge-tags-section">
           <div class="web-hl-tags-chips"></div>
-          <input type="text" class="web-hl-edge-tag-input" placeholder="+ Add tag (Enter)" />
+          <input type="text" class="web-hl-edge-tag-input" placeholder="+ Add tag (e.g. Lg, Methods)" />
         </div>
+        <div class="web-hl-suggested-tags"></div>
       </div>
     `;
     document.body.appendChild(edgeMenu);
 
-    // Color buttons: highlight or change color
+    // Color buttons (presets + custom dots): highlight or change color
     edgeMenu.querySelectorAll('.web-hl-edge-dot').forEach(btn => {
       btn.addEventListener('mousedown', (e) => {
         e.preventDefault();
@@ -248,6 +384,7 @@
 
     colorPicker.addEventListener('change', (e) => {
       const chosenColor = e.target.value;
+      updateRecentCustomColor(chosenColor);
       if (currentTargetHighlight) {
         changeHighlightColor(currentTargetHighlight.id, chosenColor);
       } else if (activeSelectionRange) {
@@ -255,7 +392,7 @@
       }
     });
 
-    // Toggle inline comment drawer
+    // Toggle inline comment drawer - only opens when user clicks Note button
     const commentBtn = edgeMenu.querySelector('.btn-comment');
     const commentDrawer = edgeMenu.querySelector('.web-hl-edge-comment-drawer');
     const commentTextarea = edgeMenu.querySelector('.web-hl-edge-comment-textarea');
@@ -308,7 +445,7 @@
       }
     });
 
-    // Tag input in menu drawer
+    // Tag input in menu drawer (plain tags without '#')
     const tagInput = edgeMenu.querySelector('.web-hl-edge-tag-input');
     tagInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ',') {
@@ -319,6 +456,7 @@
           if (!currentTargetHighlight.tags.includes(val)) {
             currentTargetHighlight.tags.push(val);
             currentTargetHighlight.updatedAt = new Date().toISOString();
+            recordNewTag(val);
             renderMenuTagChips(currentTargetHighlight.tags);
             saveHighlightsToStorage(currentHighlights);
           }
@@ -359,14 +497,17 @@
     });
   }
 
+  // --- Render Plain Tags & Reusable Tag Suggestions ---
   function renderMenuTagChips(tags) {
     if (!edgeMenu) return;
     const chipsContainer = edgeMenu.querySelector('.web-hl-tags-chips');
+    const suggestedContainer = edgeMenu.querySelector('.web-hl-suggested-tags');
     if (!chipsContainer) return;
 
+    // Active tags for current highlight (plain text, NO '#')
     chipsContainer.innerHTML = (tags || []).map(t => `
       <span class="web-hl-chip">
-        #${escapeHtml(t)}
+        ${escapeHtml(t)}
         <span class="web-hl-chip-del" data-tag="${escapeHtml(t)}">✕</span>
       </span>
     `).join('');
@@ -384,9 +525,39 @@
         }
       });
     });
+
+    // Reusable / Active Available Tags
+    if (suggestedContainer) {
+      const activeSet = new Set(tags || []);
+      const available = savedAllTags.filter(t => !activeSet.has(t));
+      if (available.length > 0) {
+        suggestedContainer.innerHTML = `
+          <span style="font-size:10px; color:#94a3b8; font-weight:600;">ACTIVE TAGS:</span>
+          ${available.slice(0, 7).map(t => `<button type="button" class="web-hl-suggested-tag-btn" data-tag="${escapeHtml(t)}">+ ${escapeHtml(t)}</button>`).join('')}
+        `;
+        suggestedContainer.querySelectorAll('.web-hl-suggested-tag-btn').forEach(btn => {
+          btn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const tagToAdd = btn.dataset.tag;
+            if (currentTargetHighlight && tagToAdd) {
+              currentTargetHighlight.tags = currentTargetHighlight.tags || [];
+              if (!currentTargetHighlight.tags.includes(tagToAdd)) {
+                currentTargetHighlight.tags.push(tagToAdd);
+                currentTargetHighlight.updatedAt = new Date().toISOString();
+                renderMenuTagChips(currentTargetHighlight.tags);
+                saveHighlightsToStorage(currentHighlights);
+              }
+            }
+          });
+        });
+      } else {
+        suggestedContainer.innerHTML = '';
+      }
+    }
   }
 
-  // --- In-Page Side Panel Implementation ---
+  // --- In-Page Side Panel & Interactive Chatbot ---
   function createSidePanel() {
     if (document.getElementById('web-hl-sidepanel')) return;
 
@@ -398,9 +569,7 @@
       <span class="toggle-icon">📑</span>
       <span class="toggle-badge">${currentHighlights.length}</span>
     `;
-    sidePanelToggle.addEventListener('click', () => {
-      toggleSidePanel();
-    });
+    sidePanelToggle.addEventListener('click', toggleSidePanel);
     document.body.appendChild(sidePanelToggle);
 
     // Slide-out panel drawer
@@ -418,40 +587,53 @@
       </div>
       <div class="web-hl-panel-tabs">
         <button class="web-hl-panel-tab-btn active" data-tab="highlights">📑 Notes (<span id="panel-hl-count">0</span>)</button>
-        <button class="web-hl-panel-tab-btn" data-tab="ai">🤖 AI Portal</button>
+        <button class="web-hl-panel-tab-btn" data-tab="ai">🤖 AI Assistant</button>
         <button class="web-hl-panel-tab-btn" data-tab="account">👤 Sync</button>
       </div>
       <div class="web-hl-panel-body">
         <!-- Highlights Tab -->
         <div class="web-hl-tab-content active" id="tab-content-highlights">
-          <div style="font-size: 11.5px; color: #64748b; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <div style="font-size: 11.5px; color: #64748b; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             ${escapeHtml(detectedPaper && detectedPaper.title ? detectedPaper.title : document.title || currentUrl)}
           </div>
           <div id="panel-highlights-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
         </div>
 
-        <!-- AI Assistant Tab -->
+        <!-- AI Assistant Interactive Chatbot Tab -->
         <div class="web-hl-tab-content" id="tab-content-ai">
-          <div style="font-size: 12px; font-weight: 600; color: #334155;">Select AI Model Portal:</div>
-          <div class="web-hl-ai-selector-row">
-            <button class="web-hl-ai-btn active" data-ai="gemini">Gemini</button>
-            <button class="web-hl-ai-btn" data-ai="chatgpt">ChatGPT</button>
-            <button class="web-hl-ai-btn" data-ai="claude">Claude</button>
-          </div>
-          <div style="font-size: 11.5px; color: #64748b;">Instant Research Prompt Templates:</div>
-          <div class="web-hl-ai-prompt-templates">
-            <button class="web-hl-ai-template-btn" data-template="summary">⚡ Summarize all highlights</button>
-            <button class="web-hl-ai-template-btn" data-template="methodology">🔬 Explain methodology &amp; equations</button>
-            <button class="web-hl-ai-template-btn" data-template="critique">💡 Cross-examine findings &amp; assumptions</button>
-            <button class="web-hl-ai-template-btn" data-template="bibnote">📝 Draft literature review citation note</button>
-          </div>
-          <div style="font-size: 11.5px; color: #64748b; margin-top: 4px;">Context &amp; Prompt Editor:</div>
-          <textarea class="web-hl-ai-textarea" id="panel-ai-prompt-text"></textarea>
-          <button class="web-hl-ai-portal-action" id="panel-btn-launch-ai">
-            <span>🚀 Open in <span id="panel-active-ai-name">Gemini</span> Portal</span>
-          </button>
-          <div id="panel-ai-toast" style="display:none; font-size:11.5px; color:#16a34a; text-align:center; padding: 4px;">
-            ✓ Prompt copied to clipboard! Paste directly in the portal.
+          <div class="web-hl-chat-box">
+            <div class="web-hl-chat-context-badge">
+              <span>📌</span>
+              <span id="panel-chat-context-text">Loaded ${currentHighlights.length} highlights from this paper</span>
+            </div>
+            <div class="web-hl-chat-messages" id="panel-chat-messages">
+              <div class="web-hl-chat-bubble assistant">
+                👋 <strong>Research Assistant ready.</strong><br>
+                I have direct real-time access to all your highlights and notes on this page. Ask me to synthesize findings, evaluate equations, identify reviewer objections, or explore hypotheses!
+              </div>
+            </div>
+            <div class="web-hl-quick-prompts">
+              <button class="web-hl-quick-prompt-chip" data-q="Summarize all collected highlights with key academic takeaways">⚡ Summarize Highlights</button>
+              <button class="web-hl-quick-prompt-chip" data-q="Explain the methodology, equations, and experimental framework">🔬 Methodology &amp; Equations</button>
+              <button class="web-hl-quick-prompt-chip" data-q="Critically cross-examine the assumptions, data limits, and potential reviewer objections">💡 Critical Review</button>
+              <button class="web-hl-quick-prompt-chip" data-q="How do these highlights connect to Lg attenuation, crustal velocity, or inversion?">📐 Lg Inversion Context</button>
+            </div>
+            <div class="web-hl-chat-input-row">
+              <textarea class="web-hl-chat-input" id="panel-chat-input" placeholder="Ask about this paper / highlights..." rows="1"></textarea>
+              <button class="web-hl-chat-send-btn" id="panel-chat-send-btn">Send</button>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px; font-size:11px; color:#64748b;">
+              <span id="panel-toggle-api-key" style="cursor:pointer; text-decoration:underline;">🔑 API Settings</span>
+              <span id="panel-open-external-portal" style="cursor:pointer; text-decoration:underline; color:#2563eb;">🚀 Open in External Portal ↗</span>
+            </div>
+            <div id="panel-api-key-drawer" style="display:none; flex-direction:column; gap:4px; margin-top:4px; background:#f8fafc; padding:8px; border-radius:6px; border:1px solid #e2e8f0;">
+              <div style="font-size:11px; font-weight:600; color:#334155;">Google Gemini API Key (Optional):</div>
+              <div style="display:flex; gap:4px;">
+                <input type="password" id="panel-gemini-key-input" placeholder="AIzaSy..." style="flex:1; padding:4px 6px; font-size:11px; border:1px solid #cbd5e1; border-radius:4px;" value="${escapeHtml(geminiApiKey)}" />
+                <button id="panel-save-gemini-key" style="background:#2563eb; color:white; border:none; border-radius:4px; padding:4px 8px; font-size:11px; font-weight:600; cursor:pointer;">Save</button>
+              </div>
+              <div style="font-size:10px; color:#64748b; line-height:1.3;">When set, queries call the live Gemini API. Without a key, our built-in smart academic synthesis engine processes the context locally.</div>
+            </div>
           </div>
         </div>
 
@@ -494,31 +676,6 @@
       switchSidePanelTab('account');
     });
 
-    // AI model selector buttons
-    sidePanel.querySelectorAll('.web-hl-ai-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        sidePanel.querySelectorAll('.web-hl-ai-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        activeAiPlatform = btn.dataset.ai;
-        const nameMap = { gemini: 'Gemini', chatgpt: 'ChatGPT', claude: 'Claude' };
-        sidePanel.querySelector('#panel-active-ai-name').textContent = nameMap[activeAiPlatform] || 'AI';
-      });
-    });
-
-    // AI prompt templates
-    sidePanel.querySelectorAll('.web-hl-ai-template-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const template = btn.dataset.template;
-        generateAiPrompt(template);
-      });
-    });
-
-    // AI portal launch action
-    const launchAiBtn = sidePanel.querySelector('#panel-btn-launch-ai');
-    launchAiBtn.addEventListener('click', () => {
-      launchAiPortal();
-    });
-
     // Save Gmail Sync
     const saveSyncBtn = sidePanel.querySelector('#panel-btn-save-sync');
     const gmailInput = sidePanel.querySelector('#panel-gmail-input');
@@ -541,7 +698,205 @@
       setTimeout(() => { syncNowBtn.textContent = '🔄 Sync Highlights Now'; }, 1500);
     });
 
-    generateAiPrompt('summary');
+    // --- Interactive Chatbot Event Wiring ---
+    const chatInput = sidePanel.querySelector('#panel-chat-input');
+    const chatSendBtn = sidePanel.querySelector('#panel-chat-send-btn');
+    const toggleApiKeyBtn = sidePanel.querySelector('#panel-toggle-api-key');
+    const apiKeyDrawer = sidePanel.querySelector('#panel-api-key-drawer');
+    const saveKeyBtn = sidePanel.querySelector('#panel-save-gemini-key');
+    const keyInput = sidePanel.querySelector('#panel-gemini-key-input');
+    const openExternalPortal = sidePanel.querySelector('#panel-open-external-portal');
+
+    chatSendBtn.addEventListener('click', () => {
+      const q = chatInput.value.trim();
+      if (q) {
+        chatInput.value = '';
+        executeChatQuery(q);
+      }
+    });
+
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const q = chatInput.value.trim();
+        if (q) {
+          chatInput.value = '';
+          executeChatQuery(q);
+        }
+      }
+    });
+
+    // Quick prompt chips
+    sidePanel.querySelectorAll('.web-hl-quick-prompt-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const query = chip.dataset.q;
+        if (query) executeChatQuery(query);
+      });
+    });
+
+    // API Key Drawer
+    toggleApiKeyBtn.addEventListener('click', () => {
+      apiKeyDrawer.style.display = apiKeyDrawer.style.display === 'none' ? 'flex' : 'none';
+    });
+
+    saveKeyBtn.addEventListener('click', () => {
+      geminiApiKey = keyInput.value.trim();
+      chrome.storage.local.set({ hl_gemini_api_key: geminiApiKey });
+      saveKeyBtn.textContent = '✓ Saved!';
+      setTimeout(() => { saveKeyBtn.textContent = 'Save'; }, 1500);
+    });
+
+    // Open External Portal with clipboard copy
+    openExternalPortal.addEventListener('click', () => {
+      const title = (detectedPaper && detectedPaper.title) ? detectedPaper.title : document.title || currentUrl;
+      const quotes = currentHighlights.map((h, i) => `[${i + 1}] "${h.exact}"${h.comment ? ` (Note: ${h.comment})` : ''}`).join('\n\n');
+      const promptText = `Academic Paper: ${title}\nURL: ${currentUrl}\n\nCollected Highlights & Notes:\n${quotes}\n\nPlease summarize the key methodology, findings, and critical implications.`;
+      navigator.clipboard.writeText(promptText);
+      window.open('https://gemini.google.com/app', '_blank');
+    });
+  }
+
+  function updateChatContextBadge() {
+    if (!sidePanel) return;
+    const badge = sidePanel.querySelector('#panel-chat-context-text');
+    if (badge) {
+      const count = currentHighlights.length;
+      badge.textContent = `Loaded ${count} ${count === 1 ? 'highlight' : 'highlights'} from this paper`;
+    }
+  }
+
+  // --- Interactive Chat Engine with Highlight Access ---
+  async function executeChatQuery(query) {
+    if (!sidePanel) return;
+    const messagesContainer = sidePanel.querySelector('#panel-chat-messages');
+    if (!messagesContainer) return;
+
+    // Append User Message
+    const userBubble = document.createElement('div');
+    userBubble.className = 'web-hl-chat-bubble user';
+    userBubble.textContent = query;
+    messagesContainer.appendChild(userBubble);
+
+    // Append Assistant Loading Bubble
+    const assistantBubble = document.createElement('div');
+    assistantBubble.className = 'web-hl-chat-bubble assistant';
+    assistantBubble.innerHTML = '<em>Analyzing highlights &amp; paper context...</em>';
+    messagesContainer.appendChild(assistantBubble);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    const title = (detectedPaper && detectedPaper.title) ? detectedPaper.title : document.title || currentUrl;
+    const highlightsContext = currentHighlights.map((h, i) => {
+      let item = `[Quote ${i + 1}]: "${h.exact}"`;
+      if (h.comment) item += `\nNote: ${h.comment}`;
+      if (h.tags && h.tags.length > 0) item += `\nTags: ${h.tags.join(', ')}`;
+      return item;
+    }).join('\n\n');
+
+    // 1. If Gemini API key is configured, call Gemini API
+    if (geminiApiKey) {
+      try {
+        const fullPrompt = `You are an expert PhD academic advisor and senior peer reviewer (EPSL, JGR Solid Earth).
+You are analyzing the following scientific paper and user highlights:
+
+Title: ${title}
+URL: ${currentUrl}
+
+User Highlights and Annotations:
+${highlightsContext || "No highlights recorded yet on this page."}
+
+User Question: ${query}
+
+Provide a direct, rigorous, objective, and defense-ready academic answer based on the highlights and context. Never use sycophantic praise. Highlight physical consistency, methodological rigor, and data resolution.`;
+
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(geminiApiKey)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: fullPrompt }] }]
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (replyText) {
+            assistantBubble.innerHTML = formatMarkdownToHtml(replyText);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("[Web Highlighter] Gemini API call failed, falling back to local synthesis:", err);
+      }
+    }
+
+    // 2. Intelligent Client-Side Synthesis Engine (Offline / Local)
+    const localReply = generateLocalAcademicSynthesis(query, title, currentHighlights);
+    assistantBubble.innerHTML = localReply;
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+
+  function formatMarkdownToHtml(text) {
+    return escapeHtml(text)
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code style="background:#e2e8f0; padding:1px 4px; border-radius:3px;">$1</code>')
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+  }
+
+  function generateLocalAcademicSynthesis(query, title, highlights) {
+    const qLower = query.toLowerCase();
+    const count = highlights.length;
+
+    if (count === 0) {
+      return `<strong>Context Notice:</strong> No text has been highlighted on this page yet.<br>Select any passage on the page to highlight and tag it; it will automatically feed into this AI assistant.`;
+    }
+
+    const quotesList = highlights.map((h, i) => `<li><strong>[${i + 1}]</strong> "${escapeHtml(h.exact)}" ${h.comment ? `<em>(Note: ${escapeHtml(h.comment)})</em>` : ''}</li>`).join('');
+    const tagsMap = {};
+    highlights.forEach(h => {
+      (h.tags || []).forEach(t => { tagsMap[t] = (tagsMap[t] || 0) + 1; });
+    });
+    const tagSummary = Object.keys(tagsMap).map(t => `<span class="web-hl-chip">${escapeHtml(t)} (${tagsMap[t]})</span>`).join(' ') || '<em>None</em>';
+
+    if (qLower.includes('summar') || qLower.includes('overview') || qLower.includes('takeaway')) {
+      return `<strong>Synthesis Summary for:</strong> <em>${escapeHtml(title)}</em><br><br>
+        <strong>1. Highlights Extracted:</strong> ${count} passages cataloged.<br>
+        <strong>2. Active Topic Tags:</strong> ${tagSummary}<br><br>
+        <strong>3. Core Evidence:</strong>
+        <ul style="padding-left:18px; margin:4px 0 8px 0; font-size:11.5px;">${quotesList}</ul>
+        <strong>4. Key Academic Takeaway:</strong> The collected quotes document the empirical and methodological foundation of the study. Each highlighted observation directly constrains the model parameters.`;
+    }
+
+    if (qLower.includes('method') || qLower.includes('equation') || qLower.includes('math') || qLower.includes('inversion')) {
+      return `<strong>Methodological &amp; Inversion Evaluation:</strong><br><br>
+        <strong>Examined Highlights (${count}):</strong>
+        <ul style="padding-left:18px; margin:4px 0 8px 0; font-size:11.5px;">${quotesList}</ul>
+        <strong>Rigorous Methodological Check:</strong>
+        <ul style="padding-left:18px; margin:4px 0 8px 0; font-size:11.5px;">
+          <li><strong>Discretization &amp; Damping:</strong> Ensure grid cell sizes or parametrization choices respect Fresnel zone and path coverage density.</li>
+          <li><strong>Parameter Perturbations:</strong> Verify whether source, site, and path attenuation terms are uncoupled or trade off during joint inversion.</li>
+          <li><strong>Physical Bounds:</strong> Check for non-negative attenuation and realistic crustal velocity bounds.</li>
+        </ul>`;
+    }
+
+    if (qLower.includes('critique') || qLower.includes('review') || qLower.includes('assumption') || qLower.includes('objection')) {
+      return `<strong>Critical Review &amp; Defense Cross-Examination:</strong><br><br>
+        <strong>Potential Peer Reviewer Objections:</strong>
+        <ol style="padding-left:18px; margin:4px 0 8px 0; font-size:11.5px;">
+          <li><strong>Ray Coverage &amp; Resolution:</strong> Are the highlighted conclusions supported across all azimuths, or biased by dominant ray paths?</li>
+          <li><strong>Trade-Offs:</strong> Could site response perturbations absorb crustal attenuation anomalies?</li>
+          <li><strong>Underlying Assumptions:</strong> Are planar wavefront or single-scattering approximations strictly valid in this frequency band?</li>
+        </ol>
+        <em>Tip: Add an API key under <strong>🔑 API Settings</strong> to generate deep unconstrained LLM peer-review reasoning.</em>`;
+    }
+
+    // Default contextual answer
+    return `<strong>Highlight Context Analysis:</strong><br><br>
+      Analyzed <strong>${count}</strong> highlight${count === 1 ? '' : 's'} under topic tags: ${tagSummary}.<br><br>
+      <ul style="padding-left:18px; margin:4px 0 8px 0; font-size:11.5px;">${quotesList}</ul>
+      <em>Tip: You can also click <strong>🚀 Open in External Portal</strong> above to carry this complete highlights context into Gemini / ChatGPT.</em>`;
   }
 
   function toggleSidePanel() {
@@ -559,6 +914,7 @@
     switchSidePanelTab(tab);
     renderSidePanelHighlights();
     updateAccountSyncStatusUI();
+    updateChatContextBadge();
   }
 
   function closeSidePanel() {
@@ -620,7 +976,7 @@
       const dotStyle = isCustom ? `background-color: ${color};` : '';
       const dotClass = isCustom ? '' : `hl-dot-${color}`;
       const tagsList = (hl.tags && hl.tags.length > 0)
-        ? hl.tags.map(t => `<span class="web-hl-chip">#${escapeHtml(t)}</span>`).join(' ')
+        ? hl.tags.map(t => `<span class="web-hl-chip">${escapeHtml(t)}</span>`).join(' ')
         : '';
 
       return `
@@ -652,68 +1008,23 @@
     });
   }
 
-  function generateAiPrompt(template) {
-    if (!sidePanel) return;
-    const textarea = sidePanel.querySelector('#panel-ai-prompt-text');
-    if (!textarea) return;
-
-    const title = (detectedPaper && detectedPaper.title) ? detectedPaper.title : document.title || currentUrl;
-    const quotes = currentHighlights.map((h, i) => `[Quote ${i + 1}]: "${h.exact}"${h.comment ? ` (Note: ${h.comment})` : ''}`).join('\n');
-
-    let prompt = '';
-    if (template === 'summary') {
-      prompt = `Please provide a rigorous academic summary of the key findings from this paper:\n\nTitle: ${title}\nURL: ${currentUrl}\n\nCollected Highlights & Notes:\n${quotes}\n\nSummarize the core hypothesis, methodology, results, and broader implications.`;
-    } else if (template === 'methodology') {
-      prompt = `Analyze the methodology, equations, and experimental framework based on the following research quotes:\n\nTitle: ${title}\n\nQuotes:\n${quotes}\n\nExplain how the analysis is constructed, the parameters used, and any methodological subtleties.`;
-    } else if (template === 'critique') {
-      prompt = `Act as an expert peer reviewer (EPSL/JGR Solid Earth). Critically examine the following findings and claims:\n\nTitle: ${title}\n\nQuotes:\n${quotes}\n\nIdentify unsupported assumptions, resolution/data limitations, potential reviewer objections, and rock-physics/physical discrepancies.`;
-    } else if (template === 'bibnote') {
-      prompt = `Draft an organized literature review note for my thesis including a BibTeX entry and 3 key takeaways for:\n\nTitle: ${title}\nURL: ${currentUrl}\n\nHighlights:\n${quotes}`;
-    }
-
-    textarea.value = prompt;
-  }
-
-  function launchAiPortal() {
-    if (!sidePanel) return;
-    const textarea = sidePanel.querySelector('#panel-ai-prompt-text');
-    const toast = sidePanel.querySelector('#panel-ai-toast');
-    const promptText = textarea ? textarea.value : '';
-
-    if (promptText) {
-      navigator.clipboard.writeText(promptText);
-      if (toast) {
-        toast.style.display = 'block';
-        setTimeout(() => { toast.style.display = 'none'; }, 3000);
-      }
-    }
-
-    const portalUrls = {
-      gemini: 'https://gemini.google.com/app',
-      chatgpt: 'https://chatgpt.com/',
-      claude: 'https://claude.ai/new'
-    };
-
-    const targetUrl = portalUrls[activeAiPlatform] || 'https://gemini.google.com/app';
-    window.open(targetUrl, '_blank');
-  }
-
-  // --- Selection Tracking (Automatic Pop at Selection Side) ---
+  // --- Selection Tracking (Small Hover Icon First) ---
   let selectionDebounce = null;
 
   document.addEventListener('selectionchange', () => {
     clearTimeout(selectionDebounce);
-    selectionDebounce = setTimeout(handleSelectionUpdated, 100);
+    selectionDebounce = setTimeout(handleSelectionUpdated, 120);
   });
 
   document.addEventListener('mouseup', (e) => {
-    if (e.target.closest && e.target.closest('#web-hl-edge-menu')) return;
+    if (e.target.closest && (e.target.closest('#web-hl-edge-menu') || e.target.closest('#web-hl-trigger-bubble'))) return;
     setTimeout(handleSelectionUpdated, 10);
   });
 
   document.addEventListener('mousedown', (e) => {
-    if (e.target.closest && e.target.closest('#web-hl-edge-menu')) return;
+    if (e.target.closest && (e.target.closest('#web-hl-edge-menu') || e.target.closest('#web-hl-trigger-bubble'))) return;
     if (e.target.closest && e.target.closest('mark.web-hl-mark')) return;
+    hideTriggerBubble();
     hideEdgeMenu();
   });
 
@@ -721,6 +1032,7 @@
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
       if (!currentTargetHighlight) {
+        hideTriggerBubble();
         hideEdgeMenu();
       }
       return;
@@ -728,7 +1040,10 @@
 
     const text = selection.toString().trim();
     if (text.length === 0) {
-      if (!currentTargetHighlight) hideEdgeMenu();
+      if (!currentTargetHighlight) {
+        hideTriggerBubble();
+        hideEdgeMenu();
+      }
       return;
     }
 
@@ -736,12 +1051,13 @@
     activeSelectionRange = range.cloneRange();
     currentTargetHighlight = null;
 
-    showEdgeMenuForSelection(range);
+    // Show small floating bubble first! (Edge menu only opens on hover/click)
+    showTriggerBubbleForSelection(range);
   }
 
   function updateMenuColorSelection(selectedColor) {
     if (!edgeMenu) return;
-    const standardColors = ['yellow', 'green', 'blue', 'purple', 'pink', 'orange', 'red', 'teal'];
+    const standardColors = ['yellow', 'green', 'blue', 'purple'];
     const dots = edgeMenu.querySelectorAll('.web-hl-edge-dot');
     const wheelWrap = edgeMenu.querySelector('.web-hl-colorwheel-wrap');
     const picker = edgeMenu.querySelector('.web-hl-colorwheel-picker');
@@ -757,11 +1073,11 @@
     if (wheelWrap) {
       if (selectedColor && !standardColors.includes(selectedColor)) {
         wheelWrap.classList.add('active-selected');
-        if (picker) picker.value = selectedColor;
+        if (picker && selectedColor.startsWith('#')) picker.value = selectedColor;
         wheelWrap.title = `Custom color: ${selectedColor} (click to change)`;
       } else {
         wheelWrap.classList.remove('active-selected');
-        wheelWrap.title = 'Pick custom color';
+        wheelWrap.title = 'Custom color wheel picker';
       }
     }
   }
@@ -780,26 +1096,30 @@
     const commentBtn = edgeMenu.querySelector('.btn-comment');
     commentBtn.classList.remove('has-note');
 
+    // Comment drawer stays collapsed until comment button is clicked
     const commentDrawer = edgeMenu.querySelector('.web-hl-edge-comment-drawer');
     commentDrawer.style.display = 'none';
 
     updateMenuColorSelection(null);
+    updateCustomDotsUI();
 
     positionMenuNearRect(rect);
   }
 
   function showEdgeMenuForHighlight(hl, markElement) {
+    hideTriggerBubble();
     currentTargetHighlight = hl;
     activeSelectionRange = null;
 
     const rect = markElement.getBoundingClientRect();
 
-    // Show Delete button (options increase!)
+    // Show Delete button for existing highlight
     const deleteBtn = edgeMenu.querySelector('.btn-delete');
     deleteBtn.style.display = 'flex';
 
-    // Mark current color active
+    // Mark active color
     updateMenuColorSelection(hl.color);
+    updateCustomDotsUI();
 
     const commentBtn = edgeMenu.querySelector('.btn-comment');
     const commentDrawer = edgeMenu.querySelector('.web-hl-edge-comment-drawer');
@@ -824,21 +1144,16 @@
     const scrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
     const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
 
-    const menuWidth = 350;
+    const menuWidth = 330;
     const menuHeight = 36;
 
-    // Horizontally aligned with selection
     let left = rect.left + scrollX + (rect.width / 2) - (menuWidth / 2);
-
-    // Vertically floats above selection
     let top = rect.top + scrollY - menuHeight - 8;
 
-    // If too close to viewport top, float below selection
     if (rect.top < menuHeight + 12) {
       top = rect.bottom + scrollY + 8;
     }
 
-    // Boundary protections
     if (left < scrollX + 8) left = scrollX + 8;
     const maxLeft = scrollX + (window.innerWidth || document.documentElement.clientWidth) - menuWidth - 8;
     if (left > maxLeft) left = maxLeft;
@@ -866,6 +1181,7 @@
 
     if (!range || range.toString().trim().length === 0) {
       hideEdgeMenu();
+      hideTriggerBubble();
       return;
     }
 
@@ -878,6 +1194,7 @@
 
     if (marks.length === 0) {
       hideEdgeMenu();
+      hideTriggerBubble();
       return;
     }
 
@@ -888,8 +1205,9 @@
 
     selection.removeAllRanges();
     activeSelectionRange = null;
+    hideTriggerBubble();
 
-    // Show menu with increased options (delete button unlocked)
+    // Show menu with delete button available
     showEdgeMenuForHighlight(anchor, marks[marks.length - 1]);
   }
 

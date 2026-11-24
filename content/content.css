@@ -87,6 +87,37 @@ mark.web-hl-pulse {
   border-radius: 4px !important;
 }
 
+/* --- Selection Floating Trigger Bubble --- */
+#web-hl-trigger-bubble {
+  position: absolute !important;
+  z-index: 2147483647 !important;
+  display: none !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16) !important;
+  cursor: pointer !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease !important;
+  padding: 0 !important;
+  color: #2563eb !important;
+  user-select: none !important;
+}
+
+#web-hl-trigger-bubble.web-hl-visible {
+  display: flex !important;
+  animation: web-hl-menu-pop 0.14s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+#web-hl-trigger-bubble:hover {
+  transform: scale(1.18) !important;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3) !important;
+  border-color: #93c5fd !important;
+}
+
 /* --- Microsoft Edge-Style Mini Menu --- */
 #web-hl-edge-menu {
   position: absolute !important;
@@ -344,6 +375,35 @@ mark.web-hl-pulse {
 .web-hl-edge-tag-input:focus {
   border-color: #2563eb !important;
   background: #ffffff !important;
+}
+
+/* Suggested Tags */
+.web-hl-suggested-tags {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 4px !important;
+  margin-top: 3px !important;
+}
+
+.web-hl-suggested-tag-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px dashed #cbd5e1 !important;
+  border-radius: 10px !important;
+  font-size: 10.5px !important;
+  font-weight: 500 !important;
+  padding: 1px 6px !important;
+  cursor: pointer !important;
+  transition: all 0.12s ease !important;
+}
+
+.web-hl-suggested-tag-btn:hover {
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #93c5fd !important;
 }
 
 /* --- Slide-Out In-Page Side Panel --- */
@@ -623,6 +683,135 @@ mark.web-hl-pulse {
 }
 
 .web-hl-ai-portal-action:hover {
+  background: #1d4ed8 !important;
+}
+
+/* In-Panel Interactive AI Chatbot */
+.web-hl-chat-box {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  gap: 8px !important;
+  margin-top: 6px !important;
+}
+
+.web-hl-chat-context-badge {
+  font-size: 11px !important;
+  color: #1d4ed8 !important;
+  background: #eff6ff !important;
+  border: 1px solid #bfdbfe !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.web-hl-chat-messages {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding: 4px 1px !important;
+  max-height: 250px !important;
+  min-height: 120px !important;
+}
+
+.web-hl-chat-bubble {
+  padding: 8px 11px !important;
+  border-radius: 10px !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
+}
+
+.web-hl-chat-bubble.user {
+  align-self: flex-end !important;
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-bottom-right-radius: 2px !important;
+  max-width: 85% !important;
+}
+
+.web-hl-chat-bubble.assistant {
+  align-self: flex-start !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+  border-bottom-left-radius: 2px !important;
+  max-width: 95% !important;
+}
+
+.web-hl-chat-bubble.assistant strong {
+  color: #1e3a8a !important;
+}
+
+.web-hl-quick-prompts {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+}
+
+.web-hl-quick-prompt-chip {
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 12px !important;
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+  color: #334155 !important;
+  cursor: pointer !important;
+  transition: all 0.12s ease !important;
+}
+
+.web-hl-quick-prompt-chip:hover {
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #93c5fd !important;
+}
+
+.web-hl-chat-input-row {
+  display: flex !important;
+  gap: 6px !important;
+  align-items: flex-end !important;
+  margin-top: 4px !important;
+}
+
+.web-hl-chat-input {
+  flex: 1 !important;
+  min-height: 38px !important;
+  max-height: 80px !important;
+  padding: 6px 8px !important;
+  font-size: 12px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  outline: none !important;
+  resize: none !important;
+  font-family: inherit !important;
+  color: #0f172a !important;
+}
+
+.web-hl-chat-input:focus {
+  border-color: #2563eb !important;
+}
+
+.web-hl-chat-send-btn {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 8px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  height: 38px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.web-hl-chat-send-btn:hover {
   background: #1d4ed8 !important;
 }
 

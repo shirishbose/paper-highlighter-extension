@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tagCloudContainer.innerHTML = tags.map(tag => {
       const count = tagsCountMap[tag];
       const isActive = currentTagFilter === tag ? 'active' : '';
-      return `<button class="tag-pill-btn ${isActive}" data-tag="${escapeHtml(tag)}">#${escapeHtml(tag)} <span style="font-size:10px; opacity:0.75;">(${count})</span></button>`;
+      return `<button class="tag-pill-btn ${isActive}" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)} <span style="font-size:10px; opacity:0.75;">(${count})</span></button>`;
     }).join('');
 
     tagCloudContainer.querySelectorAll('.tag-pill-btn').forEach(btn => {
@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (tag === 'all') {
         activeTagBadge.style.display = 'none';
       } else {
-        activeTagName.textContent = `#${tag}`;
+        activeTagName.textContent = tag;
         activeTagBadge.style.display = 'inline-flex';
       }
     }
@@ -312,7 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }) : '';
 
       const tagsPills = (page.allTags && page.allTags.length > 0)
-        ? page.allTags.map(t => `<span class="dash-block-tag" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</span>`).join('')
+        ? page.allTags.map(t => `<span class="dash-block-tag" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join('')
         : '';
 
       return `
@@ -363,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 : `<span class="dash-color-pill pill-${color}">${color}</span>`;
 
               const hlTags = (hl.tags && hl.tags.length > 0)
-                ? hl.tags.map(t => `<span class="dash-block-tag" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</span>`).join('')
+                ? hl.tags.map(t => `<span class="dash-block-tag" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join('')
                 : '';
 
               return `
