@@ -1079,8 +1079,9 @@ Provide a direct, rigorous, objective, and defense-ready academic answer based o
     activeSelectionRange = range.cloneRange();
     currentTargetHighlight = null;
 
-    // Show small floating bubble first! (Edge menu only opens on hover/click)
-    showTriggerBubbleForSelection(range);
+    hideTriggerBubble();
+    // Directly show the thin color panel strip (research note & tag box only open when comment icon is clicked)
+    showEdgeMenuForSelection(range);
   }
 
   function updateMenuColorSelection(selectedColor) {
