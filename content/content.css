@@ -437,6 +437,21 @@ mark.web-hl-pulse {
   font-size: 15px !important;
 }
 
+#web-hl-sidebar-toggle .toggle-cut-btn {
+  font-size: 10px !important;
+  color: #94a3b8 !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  padding: 1px 3px !important;
+  border-radius: 4px !important;
+  transition: all 0.12s ease !important;
+}
+
+#web-hl-sidebar-toggle .toggle-cut-btn:hover {
+  color: #ef4444 !important;
+  background: #fee2e2 !important;
+}
+
 #web-hl-sidebar-toggle .toggle-badge {
   background: #2563eb !important;
   color: #ffffff !important;

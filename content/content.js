@@ -44,11 +44,12 @@
 
   // Colors & Tags memory
   let recentCustomColors = ['#f472b6', '#fb923c'];
-  let savedAllTags = ['Lg', 'Methods', 'Inversion', 'Velocity'];
+  let savedAllTags = [];
 
   // Side Panel state
   let sidePanel = null;
   let sidePanelToggle = null;
+  let sidepanelToggleDisabled = false;
   let activeSidePanelTab = 'highlights';
   let currentUserProfile = { email: '', syncedAt: '' };
   let geminiApiKey = '';
@@ -65,14 +66,18 @@
         'hl_user_profile',
         'hl_recent_custom_colors',
         'hl_all_tags',
-        'hl_gemini_api_key'
+        'hl_gemini_api_key',
+        'hl_sidepanel_toggle_disabled'
       ], (result) => {
         if (result.hl_user_profile) currentUserProfile = result.hl_user_profile;
+        if (result.hl_sidepanel_toggle_disabled) sidepanelToggleDisabled = true;
         if (Array.isArray(result.hl_recent_custom_colors) && result.hl_recent_custom_colors.length > 0) {
           recentCustomColors = result.hl_recent_custom_colors.slice(0, 2);
         }
-        if (Array.isArray(result.hl_all_tags) && result.hl_all_tags.length > 0) {
-          savedAllTags = Array.from(new Set([...savedAllTags, ...result.hl_all_tags]));
+        if (Array.isArray(result.hl_all_tags)) {
+          savedAllTags = Array.from(new Set(result.hl_all_tags));
+        } else {
+          savedAllTags = [];
         }
         if (result.hl_gemini_api_key) {
           geminiApiKey = result.hl_gemini_api_key;
@@ -259,8 +264,9 @@
 
   function showTriggerBubbleForSelection(range) {
     if (!range) return;
-    const rect = range.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) {
+    const rects = range.getClientRects();
+    const lastRect = (rects && rects.length > 0) ? rects[rects.length - 1] : range.getBoundingClientRect();
+    if (!lastRect || (lastRect.width === 0 && lastRect.height === 0)) {
       hideTriggerBubble();
       hideEdgeMenu();
       return;
@@ -271,12 +277,15 @@
     const scrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
     const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
 
-    // Position bubble just off the right edge of the selection
-    let left = rect.right + scrollX + 4;
-    let top = rect.top + scrollY - 26;
+    // Position pen icon immediately after the last character of the selection
+    let left = lastRect.right + scrollX + 3;
+    let top = lastRect.top + scrollY + (lastRect.height / 2) - 14;
 
-    if (rect.top < 34) {
-      top = rect.bottom + scrollY + 4;
+    // Viewport boundary guard
+    const maxLeft = scrollX + (window.innerWidth || document.documentElement.clientWidth) - 34;
+    if (left > maxLeft) {
+      left = lastRect.right + scrollX - 30;
+      top = lastRect.bottom + scrollY + 4;
     }
 
     triggerBubble.style.setProperty('top', `${Math.round(top)}px`, 'important');
@@ -526,14 +535,14 @@
       });
     });
 
-    // Reusable / Active Available Tags
+    // Reusable / Saved Tag Options (Only added when user clicks it!)
     if (suggestedContainer) {
       const activeSet = new Set(tags || []);
       const available = savedAllTags.filter(t => !activeSet.has(t));
       if (available.length > 0) {
         suggestedContainer.innerHTML = `
-          <span style="font-size:10px; color:#94a3b8; font-weight:600;">ACTIVE TAGS:</span>
-          ${available.slice(0, 7).map(t => `<button type="button" class="web-hl-suggested-tag-btn" data-tag="${escapeHtml(t)}">+ ${escapeHtml(t)}</button>`).join('')}
+          <span style="font-size:10px; color:#94a3b8; font-weight:600;">OPTIONS (CLICK TO ADD):</span>
+          ${available.map(t => `<button type="button" class="web-hl-suggested-tag-btn" data-tag="${escapeHtml(t)}" title="Click to add ${escapeHtml(t)}">+ ${escapeHtml(t)}</button>`).join('')}
         `;
         suggestedContainer.querySelectorAll('.web-hl-suggested-tag-btn').forEach(btn => {
           btn.addEventListener('mousedown', (e) => {
@@ -564,12 +573,24 @@
     // Toggle button on right screen edge
     sidePanelToggle = document.createElement('div');
     sidePanelToggle.id = 'web-hl-sidebar-toggle';
+    if (sidepanelToggleDisabled) {
+      sidePanelToggle.style.display = 'none';
+    }
     sidePanelToggle.title = 'Open Web Highlights & AI Side Panel';
     sidePanelToggle.innerHTML = `
+      <span class="toggle-cut-btn" title="Close permanently">✕</span>
       <span class="toggle-icon">📑</span>
       <span class="toggle-badge">${currentHighlights.length}</span>
     `;
-    sidePanelToggle.addEventListener('click', toggleSidePanel);
+    sidePanelToggle.addEventListener('click', (e) => {
+      if (e.target.closest('.toggle-cut-btn')) {
+        e.preventDefault();
+        e.stopPropagation();
+        permanentlyCloseSidePanel();
+        return;
+      }
+      toggleSidePanel();
+    });
     document.body.appendChild(sidePanelToggle);
 
     // Slide-out panel drawer
@@ -659,8 +680,8 @@
     `;
     document.body.appendChild(sidePanel);
 
-    // Close button
-    sidePanel.querySelector('.web-hl-panel-close').addEventListener('click', closeSidePanel);
+    // Close button (permanently closes panel & floating toggle)
+    sidePanel.querySelector('.web-hl-panel-close').addEventListener('click', permanentlyCloseSidePanel);
 
     // Tab buttons
     sidePanel.querySelectorAll('.web-hl-panel-tab-btn').forEach(btn => {
@@ -921,6 +942,13 @@ Provide a direct, rigorous, objective, and defense-ready academic answer based o
     if (sidePanel) sidePanel.classList.remove('open');
   }
 
+  function permanentlyCloseSidePanel() {
+    closeSidePanel();
+    if (sidePanelToggle) sidePanelToggle.style.display = 'none';
+    sidepanelToggleDisabled = true;
+    chrome.storage.local.set({ hl_sidepanel_toggle_disabled: true });
+  }
+
   function switchSidePanelTab(tab) {
     activeSidePanelTab = tab;
     if (!sidePanel) return;
@@ -1084,8 +1112,9 @@ Provide a direct, rigorous, objective, and defense-ready academic answer based o
 
   function showEdgeMenuForSelection(range) {
     if (!range) return;
-    const rect = range.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) {
+    const rects = range.getClientRects();
+    const lastRect = (rects && rects.length > 0) ? rects[rects.length - 1] : range.getBoundingClientRect();
+    if (!lastRect || (lastRect.width === 0 && lastRect.height === 0)) {
       hideEdgeMenu();
       return;
     }
@@ -1096,14 +1125,14 @@ Provide a direct, rigorous, objective, and defense-ready academic answer based o
     const commentBtn = edgeMenu.querySelector('.btn-comment');
     commentBtn.classList.remove('has-note');
 
-    // Comment drawer stays collapsed until comment button is clicked
+    // Comment drawer stays strictly closed! Only show the color line
     const commentDrawer = edgeMenu.querySelector('.web-hl-edge-comment-drawer');
     commentDrawer.style.display = 'none';
 
     updateMenuColorSelection(null);
     updateCustomDotsUI();
 
-    positionMenuNearRect(rect);
+    positionMenuNearRect(lastRect);
   }
 
   function showEdgeMenuForHighlight(hl, markElement) {
@@ -1129,13 +1158,14 @@ Provide a direct, rigorous, objective, and defense-ready academic answer based o
 
     if (hl.comment && hl.comment.trim().length > 0) {
       commentBtn.classList.add('has-note');
-      commentDrawer.style.display = 'flex';
       commentTextarea.value = hl.comment;
     } else {
       commentBtn.classList.remove('has-note');
-      commentDrawer.style.display = 'none';
       commentTextarea.value = '';
     }
+
+    // Never auto-open comment drawer - only show the color line until Note button is clicked!
+    commentDrawer.style.display = 'none';
 
     positionMenuNearRect(rect);
   }
