@@ -3,8 +3,11 @@
 document.addEventListener('DOMContentLoaded', () => {
   let allPagesData = [];
   let currentColorFilter = 'all';
+  let currentTagFilter = 'all';
+  let currentSort = 'recent';
   let filterOnlyNotes = false;
   let filterOnlyPapers = false;
+  let currentUserProfile = { email: '', syncedAt: '' };
 
   // DOM Elements
   const statTotalHighlights = document.getElementById('stat-total-highlights');
@@ -15,6 +18,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const filterHasNotesCheckbox = document.getElementById('filter-has-notes');
   const filterOnlyPapersCheckbox = document.getElementById('filter-only-papers');
   const searchInput = document.getElementById('dashboard-search-input');
+  const sortSelect = document.getElementById('dash-sort-select');
+  const activeTagBadge = document.getElementById('active-tag-badge');
+  const activeTagName = document.getElementById('active-tag-name');
+  const btnClearTag = document.getElementById('btn-clear-tag');
+  const tagCloudContainer = document.getElementById('dash-tag-cloud');
+
+  // Account Sync Elements
+  const dashAccountEmail = document.getElementById('dash-account-email');
+  const dashGmailInput = document.getElementById('dash-gmail-input');
+  const dashBtnConnectGmail = document.getElementById('dash-btn-connect-gmail');
 
   const pagesFeed = document.getElementById('pages-feed');
   const emptyState = document.getElementById('dash-empty-state');
@@ -32,10 +45,14 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.get(null, (items) => {
       allPagesData = [];
       const pageIndex = items.hl_page_index || [];
+      currentUserProfile = items.hl_user_profile || { email: '', syncedAt: '' };
+
+      updateAccountSyncUI();
 
       let totalHighlights = 0;
       let totalNotes = 0;
       let totalPapers = 0;
+      const allTagsCountMap = {};
 
       for (const [key, value] of Object.entries(items)) {
         if (key.startsWith('hl_page_') && Array.isArray(value) && value.length > 0) {
@@ -49,11 +66,26 @@ document.addEventListener('DOMContentLoaded', () => {
                           value.some(h => h.paper && (h.paper.isPaper || h.paper.doi));
           if (isPaper) totalPapers++;
 
+          // Aggregate page tags
+          const pageTagsSet = new Set();
+          value.forEach(h => {
+            if (Array.isArray(h.tags)) {
+              h.tags.forEach(t => {
+                const cleanT = t.trim();
+                if (cleanT) {
+                  pageTagsSet.add(cleanT);
+                  allTagsCountMap[cleanT] = (allTagsCountMap[cleanT] || 0) + 1;
+                }
+              });
+            }
+          });
+
           allPagesData.push({
             url: rawUrl,
             title: meta.title || rawUrl,
             paper: meta.paper || null,
             highlights: value,
+            allTags: Array.from(pageTagsSet),
             lastUpdated: meta.updatedAt || new Date().toISOString()
           });
         }
@@ -64,6 +96,91 @@ document.addEventListener('DOMContentLoaded', () => {
       statTotalNotes.textContent = totalNotes;
       if (statTotalPapers) statTotalPapers.textContent = totalPapers;
 
+      renderTagCloud(allTagsCountMap);
+      applyFiltersAndRender();
+    });
+  }
+
+  function updateAccountSyncUI() {
+    if (dashAccountEmail) {
+      if (currentUserProfile && currentUserProfile.email) {
+        dashAccountEmail.textContent = currentUserProfile.email;
+        if (dashGmailInput) dashGmailInput.value = currentUserProfile.email;
+      } else {
+        dashAccountEmail.textContent = 'Not connected';
+      }
+    }
+  }
+
+  if (dashBtnConnectGmail) {
+    dashBtnConnectGmail.addEventListener('click', () => {
+      const email = dashGmailInput.value.trim();
+      if (email.includes('@')) {
+        currentUserProfile = {
+          email: email,
+          syncedAt: new Date().toISOString()
+        };
+        chrome.storage.local.set({ hl_user_profile: currentUserProfile }, () => {
+          updateAccountSyncUI();
+          dashBtnConnectGmail.textContent = '✓ Saved!';
+          setTimeout(() => { dashBtnConnectGmail.textContent = 'Save & Track'; }, 1500);
+        });
+      }
+    });
+  }
+
+  function renderTagCloud(tagsCountMap) {
+    if (!tagCloudContainer) return;
+    const tags = Object.keys(tagsCountMap);
+    if (tags.length === 0) {
+      tagCloudContainer.innerHTML = '<span style="font-size: 11.5px; color: #94a3b8;">No tags yet</span>';
+      return;
+    }
+
+    tagCloudContainer.innerHTML = tags.map(tag => {
+      const count = tagsCountMap[tag];
+      const isActive = currentTagFilter === tag ? 'active' : '';
+      return `<button class="tag-pill-btn ${isActive}" data-tag="${escapeHtml(tag)}">#${escapeHtml(tag)} <span style="font-size:10px; opacity:0.75;">(${count})</span></button>`;
+    }).join('');
+
+    tagCloudContainer.querySelectorAll('.tag-pill-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tag = btn.dataset.tag;
+        setTagFilter(currentTagFilter === tag ? 'all' : tag);
+      });
+    });
+  }
+
+  function setTagFilter(tag) {
+    currentTagFilter = tag;
+    if (activeTagBadge && activeTagName) {
+      if (tag === 'all') {
+        activeTagBadge.style.display = 'none';
+      } else {
+        activeTagName.textContent = `#${tag}`;
+        activeTagBadge.style.display = 'inline-flex';
+      }
+    }
+
+    if (tagCloudContainer) {
+      tagCloudContainer.querySelectorAll('.tag-pill-btn').forEach(b => {
+        if (b.dataset.tag === tag) b.classList.add('active');
+        else b.classList.remove('active');
+      });
+    }
+
+    applyFiltersAndRender();
+  }
+
+  if (btnClearTag) {
+    btnClearTag.addEventListener('click', () => {
+      setTagFilter('all');
+    });
+  }
+
+  if (sortSelect) {
+    sortSelect.addEventListener('change', (e) => {
+      currentSort = e.target.value;
       applyFiltersAndRender();
     });
   }
@@ -105,6 +222,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
       }
 
+      // Tag filter
+      if (currentTagFilter !== 'all') {
+        const hasTag = (page.allTags || []).includes(currentTagFilter);
+        if (!hasTag) return null;
+      }
+
       const pageTitleMatch = page.title.toLowerCase().includes(query);
       const pageUrlMatch = page.url.toLowerCase().includes(query);
       const paperMatch = page.paper && (
@@ -122,10 +245,17 @@ document.addEventListener('DOMContentLoaded', () => {
           return false;
         }
 
+        if (currentTagFilter !== 'all') {
+          if (!Array.isArray(hl.tags) || !hl.tags.includes(currentTagFilter)) {
+            return false;
+          }
+        }
+
         if (query) {
           const quoteMatch = hl.exact.toLowerCase().includes(query);
           const commentMatch = hl.comment && hl.comment.toLowerCase().includes(query);
-          return quoteMatch || commentMatch || pageTitleMatch || pageUrlMatch || paperMatch;
+          const tagMatch = Array.isArray(hl.tags) && hl.tags.some(t => t.toLowerCase().includes(query));
+          return quoteMatch || commentMatch || tagMatch || pageTitleMatch || pageUrlMatch || paperMatch;
         }
 
         return true;
@@ -139,6 +269,20 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       return null;
     }).filter(Boolean);
+
+    // Sort pages
+    filteredPages.sort((a, b) => {
+      if (currentSort === 'recent') {
+        return new Date(b.lastUpdated) - new Date(a.lastUpdated);
+      } else if (currentSort === 'highlights') {
+        return b.highlights.length - a.highlights.length;
+      } else if (currentSort === 'tags') {
+        return (b.allTags || []).length - (a.allTags || []).length;
+      } else if (currentSort === 'title') {
+        return (a.title || '').localeCompare(b.title || '');
+      }
+      return 0;
+    });
 
     renderFeed(filteredPages);
   }
@@ -162,64 +306,65 @@ document.addEventListener('DOMContentLoaded', () => {
       const scholarUrl = (paper && paper.scholarSearchUrl) ? paper.scholarSearchUrl : `https://scholar.google.com/scholar?q=${encodeURIComponent(page.title)}`;
       const bibtex = (paper && paper.bibtex) ? paper.bibtex : generateBibTeXFallback(page.title, paper?.authors, paper?.journal, paper?.year, paper?.doi, paperUrl);
 
+      const notesCount = page.highlights.filter(h => h.comment && h.comment.trim().length > 0).length;
+      const dateFormatted = page.lastUpdated ? new Date(page.lastUpdated).toLocaleDateString(undefined, {
+        month: 'short', day: 'numeric', year: 'numeric'
+      }) : '';
+
+      const tagsPills = (page.allTags && page.allTags.length > 0)
+        ? page.allTags.map(t => `<span class="dash-block-tag" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</span>`).join('')
+        : '';
+
       return `
-        <div class="dash-page-card" data-url="${escapeHtml(page.url)}">
-          <div class="dash-page-header">
-            <div>
-              <a href="${escapeHtml(paperUrl)}" target="_blank" class="dash-page-title">${escapeHtml(page.title)}</a>
-              <a href="${escapeHtml(page.url)}" target="_blank" class="dash-page-url">
-                ${escapeHtml(hostname)} &bull; ${page.highlights.length} ${page.highlights.length === 1 ? 'highlight' : 'highlights'}
-              </a>
-              ${paper && paper.authors ? `<div class="dash-paper-authors">${escapeHtml(paper.authors)}</div>` : ''}
-              ${(paper && (paper.paperUrl || paper.pdfUrl || paper.doi)) ? `
-                <div class="dash-paper-meta-row">
-                  <a href="${escapeHtml(paperUrl)}" target="_blank" class="dash-paper-tag">
-                    📄 ${paper.doi ? `DOI: ${escapeHtml(paper.doi)}` : 'Paper Link'}
-                  </a>
-                  ${pdfUrl ? `
-                    <a href="${escapeHtml(pdfUrl)}" target="_blank" class="dash-pdf-tag">
-                      ⬇️ Download PDF
-                    </a>
-                  ` : ''}
-                  <a href="${escapeHtml(scholarUrl)}" target="_blank" class="dash-paper-tag" style="background-color: #eff6ff; color: #1d4ed8; border-color: #bfdbfe;">
-                    🎓 Google Scholar
-                  </a>
-                  <button class="dash-paper-tag btn-copy-bibtex-card" data-bibtex="${escapeHtml(bibtex)}" style="cursor: pointer; background-color: #faf5ff; color: #7e22ce; border-color: #e9d5ff;">
-                    📋 Copy BibTeX
-                  </button>
-                  <button class="dash-paper-tag btn-dl-txt-card" data-url="${escapeHtml(page.url)}" style="cursor: pointer; background-color: #f0fdf4; color: #166534; border-color: #bbf7d0;">
-                    📥 Download Notes (.txt)
-                  </button>
-                </div>
-              ` : `
-                <div class="dash-paper-meta-row" style="margin-top: 6px;">
-                  <button class="dash-paper-tag btn-dl-txt-card" data-url="${escapeHtml(page.url)}" style="cursor: pointer; background-color: #f0fdf4; color: #166534; border-color: #bbf7d0;">
-                    📥 Download Notes (.txt)
-                  </button>
-                </div>
-              `}
-            </div>
-            <button class="dash-delete-page-btn" data-url="${escapeHtml(page.url)}" title="Delete all highlights for this page">
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+        <div class="dash-page-block" data-url="${escapeHtml(page.url)}">
+          <div class="dash-block-top">
+            <a href="${escapeHtml(page.url)}" target="_blank" class="dash-block-domain-badge">
+              🌐 ${escapeHtml(hostname)}
+            </a>
+            ${paper && paper.doi ? `
+              <span class="dash-paper-tag" style="font-size: 10.5px; padding: 1px 6px;">
+                📄 DOI: ${escapeHtml(paper.doi)}
+              </span>
+            ` : ''}
+            <button class="dash-delete-page-btn" data-url="${escapeHtml(page.url)}" title="Delete page highlights">
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
               </svg>
             </button>
           </div>
-          <div class="dash-page-highlights">
+
+          <div class="dash-block-body">
+            <a href="${escapeHtml(paperUrl)}" target="_blank" class="dash-block-title" title="${escapeHtml(page.title)}">
+              ${escapeHtml(page.title)}
+            </a>
+            ${paper && paper.authors ? `<div style="font-size: 11.5px; color: #64748b; font-style: italic;">${escapeHtml(paper.authors)}</div>` : ''}
+
+            ${tagsPills ? `<div class="dash-block-tags-row">${tagsPills}</div>` : ''}
+
+            <div class="dash-block-meta-row">
+              <span>🟡 ${page.highlights.length} ${page.highlights.length === 1 ? 'highlight' : 'highlights'} &bull; 💬 ${notesCount} ${notesCount === 1 ? 'note' : 'notes'}</span>
+              <button class="dash-toggle-highlights-btn" data-url="${escapeHtml(page.url)}">
+                View Highlights ▾
+              </button>
+            </div>
+          </div>
+
+          <!-- Collapsible Highlights Drawer -->
+          <div class="dash-block-highlights-drawer" style="display: none;">
             ${page.highlights.map(hl => {
               const color = hl.color || 'yellow';
               const dateStr = hl.createdAt ? new Date(hl.createdAt).toLocaleDateString(undefined, {
-                month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
               }) : '';
-
-              const hlPaper = hl.paper || page.paper;
-              const hlPaperUrl = (hlPaper && hlPaper.paperUrl) ? hlPaper.paperUrl : '';
-              const hlPdfUrl = (hlPaper && hlPaper.pdfUrl) ? hlPaper.pdfUrl : '';
 
               const isCustom = typeof color === 'string' && color.startsWith('#');
               const pillHtml = isCustom
                 ? `<span class="dash-color-pill" style="background: ${color}26; color: ${color}; border: 1px solid ${color}66;">Custom</span>`
                 : `<span class="dash-color-pill pill-${color}">${color}</span>`;
+
+              const hlTags = (hl.tags && hl.tags.length > 0)
+                ? hl.tags.map(t => `<span class="dash-block-tag" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</span>`).join('')
+                : '';
 
               return `
                 <div class="dash-hl-item" data-id="${hl.id}" data-url="${escapeHtml(page.url)}">
@@ -235,27 +380,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="dash-comment-view">${escapeHtml(hl.comment || '(No note added)')}</div>
                     <textarea class="dash-comment-edit-area">${escapeHtml(hl.comment || '')}</textarea>
                   </div>
-                  ${hlPaperUrl ? `
-                    <div class="dash-paper-meta-row" style="margin-top: 8px;">
-                      <a href="${escapeHtml(hlPaperUrl)}" target="_blank" class="dash-paper-tag">
-                        📄 Paper Link
-                      </a>
-                      ${hlPdfUrl ? `
-                        <a href="${escapeHtml(hlPdfUrl)}" target="_blank" class="dash-pdf-tag">
-                          ⬇️ PDF
-                        </a>
-                      ` : ''}
-                    </div>
-                  ` : ''}
+                  ${hlTags ? `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">${hlTags}</div>` : ''}
                   <div class="dash-hl-footer">
                     <button class="dash-hl-btn btn-edit-comment" data-id="${hl.id}">Edit Note</button>
                     <button class="dash-hl-btn btn-save-comment" data-id="${hl.id}" style="display: none; color: #2563eb; font-weight: 600;">Save Note</button>
-                    <button class="dash-hl-btn btn-copy-quote" data-quote="${escapeHtml(hl.exact)}" data-comment="${escapeHtml(hl.comment || '')}" data-paper="${escapeHtml(hlPaperUrl)}">Copy</button>
+                    <button class="dash-hl-btn btn-copy-quote" data-quote="${escapeHtml(hl.exact)}" data-comment="${escapeHtml(hl.comment || '')}">Copy</button>
                     <button class="dash-hl-btn delete-hl-btn" data-id="${hl.id}">Delete</button>
                   </div>
                 </div>
               `;
             }).join('')}
+          </div>
+
+          <div class="dash-block-footer">
+            <button class="dash-paper-tag btn-dl-txt-card" data-url="${escapeHtml(page.url)}" style="cursor: pointer; background-color: #f0fdf4; color: #166534; border-color: #bbf7d0;">
+              📥 Notes (.txt)
+            </button>
+            ${paper && paper.bibtex ? `
+              <button class="dash-paper-tag btn-copy-bibtex-card" data-bibtex="${escapeHtml(bibtex)}" style="cursor: pointer; background-color: #faf5ff; color: #7e22ce; border-color: #e9d5ff;">
+                📋 BibTeX
+              </button>
+            ` : ''}
+            <a href="${escapeHtml(paperUrl)}" target="_blank" class="dash-paper-tag" style="text-decoration:none;">
+              Open ↗
+            </a>
           </div>
         </div>
       `;
@@ -265,6 +413,30 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function attachCardEventListeners() {
+    // Toggle collapsible highlights drawer
+    pagesFeed.querySelectorAll('.dash-toggle-highlights-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const block = btn.closest('.dash-page-block');
+        const drawer = block.querySelector('.dash-block-highlights-drawer');
+        if (drawer.style.display === 'none') {
+          drawer.style.display = 'flex';
+          btn.textContent = 'Hide Highlights ▴';
+        } else {
+          drawer.style.display = 'none';
+          btn.textContent = 'View Highlights ▾';
+        }
+      });
+    });
+
+    // Tag click filters dashboard
+    pagesFeed.querySelectorAll('.dash-block-tag').forEach(tagSpan => {
+      tagSpan.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tag = tagSpan.dataset.tag;
+        if (tag) setTagFilter(tag);
+      });
+    });
+
     // Copy BibTeX on paper cards
     pagesFeed.querySelectorAll('.btn-copy-bibtex-card').forEach(btn => {
       btn.addEventListener('click', () => {

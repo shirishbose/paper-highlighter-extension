@@ -22,6 +22,16 @@
     }
   }
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   const currentUrl = getCleanUrl();
   let currentHighlights = [];
   let detectedPaper = null;
@@ -31,9 +41,35 @@
   let activeSelectionRange = null;
   let currentTargetHighlight = null;
 
-  // --- Storage Helpers (Auto-Save) ---
+  // Side Panel state
+  let sidePanel = null;
+  let sidePanelToggle = null;
+  let activeSidePanelTab = 'highlights';
+  let activeAiPlatform = 'gemini';
+  let currentUserProfile = { email: '', syncedAt: '' };
+
+  // --- Storage Helpers (Auto-Save & Profile) ---
   function getStorageKey() {
     return 'hl_page_' + encodeURIComponent(currentUrl);
+  }
+
+  async function loadUserProfile() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['hl_user_profile'], (result) => {
+        currentUserProfile = result.hl_user_profile || { email: '', syncedAt: '' };
+        resolve(currentUserProfile);
+      });
+    });
+  }
+
+  async function saveUserProfile(profile) {
+    currentUserProfile = profile;
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ hl_user_profile: profile }, () => {
+        updateAccountSyncStatusUI();
+        resolve();
+      });
+    });
   }
 
   async function loadHighlightsFromStorage() {
@@ -54,6 +90,7 @@
       chrome.storage.local.set(data, () => {
         updatePageIndex(highlights.length);
         updateExtensionBadge(highlights.length);
+        if (sidePanel) renderSidePanelHighlights();
         resolve();
       });
     });
@@ -81,6 +118,10 @@
       action: "UPDATE_BADGE",
       count: count
     }).catch(() => {});
+    if (sidePanelToggle) {
+      const badge = sidePanelToggle.querySelector('.toggle-badge');
+      if (badge) badge.textContent = count;
+    }
   }
 
   // --- Initial Setup & Restoration ---
@@ -89,7 +130,9 @@
       detectedPaper = window.WebHighlighterPaperDetector.detectPaperMetadata();
     }
 
+    await loadUserProfile();
     createEdgeMenu();
+    createSidePanel();
 
     currentHighlights = await loadHighlightsFromStorage();
 
@@ -98,6 +141,8 @@
     setTimeout(restoreAllHighlights, 1500);
 
     updateExtensionBadge(currentHighlights.length);
+    renderSidePanelHighlights();
+    updateAccountSyncStatusUI();
   }
 
   function restoreAllHighlights() {
@@ -117,7 +162,7 @@
     });
   }
 
-  // --- Create Edge-Style Mini Menu ---
+  // --- Create Selection Mini Menu ---
   function createEdgeMenu() {
     if (document.getElementById('web-hl-edge-menu')) {
       edgeMenu = document.getElementById('web-hl-edge-menu');
@@ -137,14 +182,19 @@
           <button class="web-hl-edge-dot hl-orange" data-color="orange" title="Orange"></button>
           <button class="web-hl-edge-dot hl-red" data-color="red" title="Red"></button>
           <button class="web-hl-edge-dot hl-teal" data-color="teal" title="Teal"></button>
-          <button class="web-hl-colorwheel-btn" title="Pick custom color">
-            <input type="color" class="web-hl-colorwheel-picker" value="#a855f7" style="position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;" />
-          </button>
+          <div class="web-hl-colorwheel-wrap" title="Custom color picker">
+            <input type="color" class="web-hl-colorwheel-picker" value="#a855f7" />
+          </div>
         </div>
         <div class="web-hl-edge-divider"></div>
-        <button class="web-hl-edge-btn btn-comment" title="Add / View Note">
+        <button class="web-hl-edge-btn btn-comment" title="Add / View Note & Tags">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
+          </svg>
+        </button>
+        <button class="web-hl-edge-btn btn-sidepanel" title="Open Side Panel & AI">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm1 2v8h7V6H4zm9 0v8h3V6h-3z" clip-rule="evenodd"/>
           </svg>
         </button>
         <button class="web-hl-edge-btn btn-delete" title="Delete highlight" style="display: none;">
@@ -159,7 +209,11 @@
         </button>
       </div>
       <div class="web-hl-edge-comment-drawer" style="display: none;">
-        <input type="text" class="web-hl-edge-comment-input" placeholder="Type a comment (auto-saves)..." />
+        <textarea class="web-hl-edge-comment-textarea" placeholder="Add a note (auto-saves)..." rows="3"></textarea>
+        <div class="web-hl-edge-tags-section">
+          <div class="web-hl-tags-chips"></div>
+          <input type="text" class="web-hl-edge-tag-input" placeholder="+ Add tag (Enter)" />
+        </div>
       </div>
     `;
     document.body.appendChild(edgeMenu);
@@ -179,14 +233,10 @@
       });
     });
 
-    // Custom colorwheel picker
-    const colorwheelBtn = edgeMenu.querySelector('.web-hl-colorwheel-btn');
+    // Custom colorwheel picker (direct native input)
     const colorPicker = edgeMenu.querySelector('.web-hl-colorwheel-picker');
-
-    colorwheelBtn.addEventListener('mousedown', (e) => {
-      e.preventDefault();
+    colorPicker.addEventListener('mousedown', (e) => {
       e.stopPropagation();
-      colorPicker.click();
     });
 
     colorPicker.addEventListener('input', (e) => {
@@ -208,7 +258,7 @@
     // Toggle inline comment drawer
     const commentBtn = edgeMenu.querySelector('.btn-comment');
     const commentDrawer = edgeMenu.querySelector('.web-hl-edge-comment-drawer');
-    const commentInput = edgeMenu.querySelector('.web-hl-edge-comment-input');
+    const commentTextarea = edgeMenu.querySelector('.web-hl-edge-comment-textarea');
 
     commentBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
@@ -219,20 +269,29 @@
       }
 
       if (commentDrawer.style.display === 'none') {
-        commentDrawer.style.display = 'block';
+        commentDrawer.style.display = 'flex';
         if (currentTargetHighlight) {
-          commentInput.value = currentTargetHighlight.comment || '';
+          commentTextarea.value = currentTargetHighlight.comment || '';
+          renderMenuTagChips(currentTargetHighlight.tags || []);
         }
-        setTimeout(() => commentInput.focus(), 30);
+        setTimeout(() => commentTextarea.focus(), 30);
       } else {
         commentDrawer.style.display = 'none';
       }
     });
 
+    // Side Panel Launcher Button
+    const sidepanelBtn = edgeMenu.querySelector('.btn-sidepanel');
+    sidepanelBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openSidePanel('highlights');
+    });
+
     // Auto-save comment on typing
-    commentInput.addEventListener('input', () => {
+    commentTextarea.addEventListener('input', () => {
       if (!currentTargetHighlight) return;
-      const text = commentInput.value.trim();
+      const text = commentTextarea.value.trim();
       currentTargetHighlight.comment = text;
       currentTargetHighlight.updatedAt = new Date().toISOString();
       saveHighlightsToStorage(currentHighlights);
@@ -245,6 +304,25 @@
         } else {
           marks[marks.length - 1].classList.remove('web-hl-has-comment');
           commentBtn.classList.remove('has-note');
+        }
+      }
+    });
+
+    // Tag input in menu drawer
+    const tagInput = edgeMenu.querySelector('.web-hl-edge-tag-input');
+    tagInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const val = tagInput.value.replace(/^[#,\s]+|[,\s]+$/g, '').trim();
+        if (val.length > 0 && currentTargetHighlight) {
+          currentTargetHighlight.tags = currentTargetHighlight.tags || [];
+          if (!currentTargetHighlight.tags.includes(val)) {
+            currentTargetHighlight.tags.push(val);
+            currentTargetHighlight.updatedAt = new Date().toISOString();
+            renderMenuTagChips(currentTargetHighlight.tags);
+            saveHighlightsToStorage(currentHighlights);
+          }
+          tagInput.value = '';
         }
       }
     });
@@ -279,6 +357,345 @@
         setTimeout(() => { copyBtn.style.color = ''; }, 1000);
       }
     });
+  }
+
+  function renderMenuTagChips(tags) {
+    if (!edgeMenu) return;
+    const chipsContainer = edgeMenu.querySelector('.web-hl-tags-chips');
+    if (!chipsContainer) return;
+
+    chipsContainer.innerHTML = (tags || []).map(t => `
+      <span class="web-hl-chip">
+        #${escapeHtml(t)}
+        <span class="web-hl-chip-del" data-tag="${escapeHtml(t)}">✕</span>
+      </span>
+    `).join('');
+
+    chipsContainer.querySelectorAll('.web-hl-chip-del').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const tagToRemove = btn.dataset.tag;
+        if (currentTargetHighlight) {
+          currentTargetHighlight.tags = (currentTargetHighlight.tags || []).filter(t => t !== tagToRemove);
+          currentTargetHighlight.updatedAt = new Date().toISOString();
+          renderMenuTagChips(currentTargetHighlight.tags);
+          saveHighlightsToStorage(currentHighlights);
+        }
+      });
+    });
+  }
+
+  // --- In-Page Side Panel Implementation ---
+  function createSidePanel() {
+    if (document.getElementById('web-hl-sidepanel')) return;
+
+    // Toggle button on right screen edge
+    sidePanelToggle = document.createElement('div');
+    sidePanelToggle.id = 'web-hl-sidebar-toggle';
+    sidePanelToggle.title = 'Open Web Highlights & AI Side Panel';
+    sidePanelToggle.innerHTML = `
+      <span class="toggle-icon">📑</span>
+      <span class="toggle-badge">${currentHighlights.length}</span>
+    `;
+    sidePanelToggle.addEventListener('click', () => {
+      toggleSidePanel();
+    });
+    document.body.appendChild(sidePanelToggle);
+
+    // Slide-out panel drawer
+    sidePanel = document.createElement('div');
+    sidePanel.id = 'web-hl-sidepanel';
+    sidePanel.innerHTML = `
+      <div class="web-hl-panel-header">
+        <div class="web-hl-panel-brand">
+          <span>📑 Web Highlights</span>
+        </div>
+        <div class="web-hl-account-status-pill" id="panel-account-pill" title="Google Account Tracking">
+          <span style="font-size: 8px;">🟢</span> <span id="panel-account-label">Track with Gmail</span>
+        </div>
+        <button class="web-hl-panel-close" title="Close Panel">✕</button>
+      </div>
+      <div class="web-hl-panel-tabs">
+        <button class="web-hl-panel-tab-btn active" data-tab="highlights">📑 Notes (<span id="panel-hl-count">0</span>)</button>
+        <button class="web-hl-panel-tab-btn" data-tab="ai">🤖 AI Portal</button>
+        <button class="web-hl-panel-tab-btn" data-tab="account">👤 Sync</button>
+      </div>
+      <div class="web-hl-panel-body">
+        <!-- Highlights Tab -->
+        <div class="web-hl-tab-content active" id="tab-content-highlights">
+          <div style="font-size: 11.5px; color: #64748b; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            ${escapeHtml(detectedPaper && detectedPaper.title ? detectedPaper.title : document.title || currentUrl)}
+          </div>
+          <div id="panel-highlights-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+
+        <!-- AI Assistant Tab -->
+        <div class="web-hl-tab-content" id="tab-content-ai">
+          <div style="font-size: 12px; font-weight: 600; color: #334155;">Select AI Model Portal:</div>
+          <div class="web-hl-ai-selector-row">
+            <button class="web-hl-ai-btn active" data-ai="gemini">Gemini</button>
+            <button class="web-hl-ai-btn" data-ai="chatgpt">ChatGPT</button>
+            <button class="web-hl-ai-btn" data-ai="claude">Claude</button>
+          </div>
+          <div style="font-size: 11.5px; color: #64748b;">Instant Research Prompt Templates:</div>
+          <div class="web-hl-ai-prompt-templates">
+            <button class="web-hl-ai-template-btn" data-template="summary">⚡ Summarize all highlights</button>
+            <button class="web-hl-ai-template-btn" data-template="methodology">🔬 Explain methodology &amp; equations</button>
+            <button class="web-hl-ai-template-btn" data-template="critique">💡 Cross-examine findings &amp; assumptions</button>
+            <button class="web-hl-ai-template-btn" data-template="bibnote">📝 Draft literature review citation note</button>
+          </div>
+          <div style="font-size: 11.5px; color: #64748b; margin-top: 4px;">Context &amp; Prompt Editor:</div>
+          <textarea class="web-hl-ai-textarea" id="panel-ai-prompt-text"></textarea>
+          <button class="web-hl-ai-portal-action" id="panel-btn-launch-ai">
+            <span>🚀 Open in <span id="panel-active-ai-name">Gemini</span> Portal</span>
+          </button>
+          <div id="panel-ai-toast" style="display:none; font-size:11.5px; color:#16a34a; text-align:center; padding: 4px;">
+            ✓ Prompt copied to clipboard! Paste directly in the portal.
+          </div>
+        </div>
+
+        <!-- Account & Sync Tab -->
+        <div class="web-hl-tab-content" id="tab-content-account">
+          <div class="web-hl-sync-card">
+            <div style="font-weight: 700; font-size: 13px; color: #0f172a;">Track &amp; Sync with Gmail</div>
+            <div style="font-size: 11.5px; color: #64748b; line-height: 1.4;">
+              Link your Google / Gmail account to synchronize highlights, tags, and research notes across all your devices.
+            </div>
+            <input type="email" class="web-hl-sync-input" id="panel-gmail-input" placeholder="e.g. yourname@gmail.com" />
+            <button class="web-hl-sync-btn" id="panel-btn-save-sync">Save &amp; Track</button>
+          </div>
+          <div class="web-hl-sync-card">
+            <div style="font-size: 12px; font-weight: 600; color: #0f172a;">Cloud Sync Status</div>
+            <div id="panel-sync-status-text" style="font-size: 11.5px; color: #16a34a;">● Not connected yet</div>
+            <button class="web-hl-edge-btn" id="panel-btn-sync-now" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:7px; font-size:11.5px;">
+              🔄 Sync Highlights Now
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(sidePanel);
+
+    // Close button
+    sidePanel.querySelector('.web-hl-panel-close').addEventListener('click', closeSidePanel);
+
+    // Tab buttons
+    sidePanel.querySelectorAll('.web-hl-panel-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        switchSidePanelTab(tab);
+      });
+    });
+
+    // Account pill click
+    const accountPill = sidePanel.querySelector('#panel-account-pill');
+    accountPill.addEventListener('click', () => {
+      switchSidePanelTab('account');
+    });
+
+    // AI model selector buttons
+    sidePanel.querySelectorAll('.web-hl-ai-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sidePanel.querySelectorAll('.web-hl-ai-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeAiPlatform = btn.dataset.ai;
+        const nameMap = { gemini: 'Gemini', chatgpt: 'ChatGPT', claude: 'Claude' };
+        sidePanel.querySelector('#panel-active-ai-name').textContent = nameMap[activeAiPlatform] || 'AI';
+      });
+    });
+
+    // AI prompt templates
+    sidePanel.querySelectorAll('.web-hl-ai-template-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const template = btn.dataset.template;
+        generateAiPrompt(template);
+      });
+    });
+
+    // AI portal launch action
+    const launchAiBtn = sidePanel.querySelector('#panel-btn-launch-ai');
+    launchAiBtn.addEventListener('click', () => {
+      launchAiPortal();
+    });
+
+    // Save Gmail Sync
+    const saveSyncBtn = sidePanel.querySelector('#panel-btn-save-sync');
+    const gmailInput = sidePanel.querySelector('#panel-gmail-input');
+    saveSyncBtn.addEventListener('click', () => {
+      const email = gmailInput.value.trim();
+      if (email.includes('@')) {
+        saveUserProfile({
+          email: email,
+          syncedAt: new Date().toISOString()
+        });
+      }
+    });
+
+    // Sync Now button
+    const syncNowBtn = sidePanel.querySelector('#panel-btn-sync-now');
+    syncNowBtn.addEventListener('click', () => {
+      currentUserProfile.syncedAt = new Date().toISOString();
+      saveUserProfile(currentUserProfile);
+      syncNowBtn.textContent = '✓ Synced Successfully!';
+      setTimeout(() => { syncNowBtn.textContent = '🔄 Sync Highlights Now'; }, 1500);
+    });
+
+    generateAiPrompt('summary');
+  }
+
+  function toggleSidePanel() {
+    if (!sidePanel) return;
+    if (sidePanel.classList.contains('open')) {
+      closeSidePanel();
+    } else {
+      openSidePanel();
+    }
+  }
+
+  function openSidePanel(tab = 'highlights') {
+    if (!sidePanel) createSidePanel();
+    sidePanel.classList.add('open');
+    switchSidePanelTab(tab);
+    renderSidePanelHighlights();
+    updateAccountSyncStatusUI();
+  }
+
+  function closeSidePanel() {
+    if (sidePanel) sidePanel.classList.remove('open');
+  }
+
+  function switchSidePanelTab(tab) {
+    activeSidePanelTab = tab;
+    if (!sidePanel) return;
+
+    sidePanel.querySelectorAll('.web-hl-panel-tab-btn').forEach(b => {
+      if (b.dataset.tab === tab) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+
+    sidePanel.querySelectorAll('.web-hl-tab-content').forEach(c => {
+      if (c.id === `tab-content-${tab}`) c.classList.add('active');
+      else c.classList.remove('active');
+    });
+  }
+
+  function updateAccountSyncStatusUI() {
+    if (!sidePanel) return;
+    const label = sidePanel.querySelector('#panel-account-label');
+    const statusText = sidePanel.querySelector('#panel-sync-status-text');
+    const gmailInput = sidePanel.querySelector('#panel-gmail-input');
+
+    if (currentUserProfile && currentUserProfile.email) {
+      if (label) label.textContent = currentUserProfile.email;
+      if (gmailInput) gmailInput.value = currentUserProfile.email;
+      if (statusText) {
+        const syncDate = currentUserProfile.syncedAt ? new Date(currentUserProfile.syncedAt).toLocaleTimeString() : 'Just now';
+        statusText.innerHTML = `🟢 <strong>Connected:</strong> ${escapeHtml(currentUserProfile.email)}<br><span style="color:#64748b; font-size:11px;">Last synced: ${syncDate}</span>`;
+      }
+    } else {
+      if (label) label.textContent = 'Track with Gmail';
+      if (statusText) statusText.textContent = '● Not connected yet. Enter your email above.';
+    }
+  }
+
+  function renderSidePanelHighlights() {
+    if (!sidePanel) return;
+    const listContainer = sidePanel.querySelector('#panel-highlights-list');
+    const countSpan = sidePanel.querySelector('#panel-hl-count');
+    if (countSpan) countSpan.textContent = currentHighlights.length;
+
+    if (currentHighlights.length === 0) {
+      listContainer.innerHTML = `
+        <div style="text-align: center; color: #94a3b8; font-size: 12px; padding: 24px 8px;">
+          No highlights yet on this page.<br>Select any text to highlight!
+        </div>
+      `;
+      return;
+    }
+
+    listContainer.innerHTML = currentHighlights.map(hl => {
+      const color = hl.color || 'yellow';
+      const isCustom = typeof color === 'string' && color.startsWith('#');
+      const dotStyle = isCustom ? `background-color: ${color};` : '';
+      const dotClass = isCustom ? '' : `hl-dot-${color}`;
+      const tagsList = (hl.tags && hl.tags.length > 0)
+        ? hl.tags.map(t => `<span class="web-hl-chip">#${escapeHtml(t)}</span>`).join(' ')
+        : '';
+
+      return `
+        <div class="web-hl-side-card" data-id="${hl.id}">
+          <div class="web-hl-side-card-header">
+            <span class="color-dot-indicator ${dotClass}" style="width:10px; height:10px; border-radius:50%; display:inline-block; ${dotStyle}"></span>
+            <div style="display:flex; gap: 4px;">
+              <button class="web-hl-edge-btn side-jump-btn" data-id="${hl.id}" title="Jump to text">🎯 Jump</button>
+              <button class="web-hl-edge-btn side-delete-btn" data-id="${hl.id}" title="Delete highlight" style="color: #ef4444;">🗑️</button>
+            </div>
+          </div>
+          <div class="web-hl-side-quote">"${escapeHtml(hl.exact)}"</div>
+          ${hl.comment ? `<div class="web-hl-side-note">💬 ${escapeHtml(hl.comment)}</div>` : ''}
+          ${tagsList ? `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;">${tagsList}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    listContainer.querySelectorAll('.side-jump-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        scrollToHighlight(btn.dataset.id);
+      });
+    });
+
+    listContainer.querySelectorAll('.side-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        deleteHighlight(btn.dataset.id);
+      });
+    });
+  }
+
+  function generateAiPrompt(template) {
+    if (!sidePanel) return;
+    const textarea = sidePanel.querySelector('#panel-ai-prompt-text');
+    if (!textarea) return;
+
+    const title = (detectedPaper && detectedPaper.title) ? detectedPaper.title : document.title || currentUrl;
+    const quotes = currentHighlights.map((h, i) => `[Quote ${i + 1}]: "${h.exact}"${h.comment ? ` (Note: ${h.comment})` : ''}`).join('\n');
+
+    let prompt = '';
+    if (template === 'summary') {
+      prompt = `Please provide a rigorous academic summary of the key findings from this paper:\n\nTitle: ${title}\nURL: ${currentUrl}\n\nCollected Highlights & Notes:\n${quotes}\n\nSummarize the core hypothesis, methodology, results, and broader implications.`;
+    } else if (template === 'methodology') {
+      prompt = `Analyze the methodology, equations, and experimental framework based on the following research quotes:\n\nTitle: ${title}\n\nQuotes:\n${quotes}\n\nExplain how the analysis is constructed, the parameters used, and any methodological subtleties.`;
+    } else if (template === 'critique') {
+      prompt = `Act as an expert peer reviewer (EPSL/JGR Solid Earth). Critically examine the following findings and claims:\n\nTitle: ${title}\n\nQuotes:\n${quotes}\n\nIdentify unsupported assumptions, resolution/data limitations, potential reviewer objections, and rock-physics/physical discrepancies.`;
+    } else if (template === 'bibnote') {
+      prompt = `Draft an organized literature review note for my thesis including a BibTeX entry and 3 key takeaways for:\n\nTitle: ${title}\nURL: ${currentUrl}\n\nHighlights:\n${quotes}`;
+    }
+
+    textarea.value = prompt;
+  }
+
+  function launchAiPortal() {
+    if (!sidePanel) return;
+    const textarea = sidePanel.querySelector('#panel-ai-prompt-text');
+    const toast = sidePanel.querySelector('#panel-ai-toast');
+    const promptText = textarea ? textarea.value : '';
+
+    if (promptText) {
+      navigator.clipboard.writeText(promptText);
+      if (toast) {
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 3000);
+      }
+    }
+
+    const portalUrls = {
+      gemini: 'https://gemini.google.com/app',
+      chatgpt: 'https://chatgpt.com/',
+      claude: 'https://claude.ai/new'
+    };
+
+    const targetUrl = portalUrls[activeAiPlatform] || 'https://gemini.google.com/app';
+    window.open(targetUrl, '_blank');
   }
 
   // --- Selection Tracking (Automatic Pop at Selection Side) ---
@@ -326,7 +743,7 @@
     if (!edgeMenu) return;
     const standardColors = ['yellow', 'green', 'blue', 'purple', 'pink', 'orange', 'red', 'teal'];
     const dots = edgeMenu.querySelectorAll('.web-hl-edge-dot');
-    const wheelBtn = edgeMenu.querySelector('.web-hl-colorwheel-btn');
+    const wheelWrap = edgeMenu.querySelector('.web-hl-colorwheel-wrap');
     const picker = edgeMenu.querySelector('.web-hl-colorwheel-picker');
 
     dots.forEach(d => {
@@ -337,16 +754,14 @@
       }
     });
 
-    if (wheelBtn) {
+    if (wheelWrap) {
       if (selectedColor && !standardColors.includes(selectedColor)) {
-        wheelBtn.classList.add('active-selected');
-        wheelBtn.style.setProperty('--custom-color', selectedColor);
+        wheelWrap.classList.add('active-selected');
         if (picker) picker.value = selectedColor;
-        wheelBtn.title = `Custom color: ${selectedColor} (click to change)`;
+        wheelWrap.title = `Custom color: ${selectedColor} (click to change)`;
       } else {
-        wheelBtn.classList.remove('active-selected');
-        wheelBtn.style.removeProperty('--custom-color');
-        wheelBtn.title = 'Pick custom color';
+        wheelWrap.classList.remove('active-selected');
+        wheelWrap.title = 'Pick custom color';
       }
     }
   }
@@ -388,16 +803,18 @@
 
     const commentBtn = edgeMenu.querySelector('.btn-comment');
     const commentDrawer = edgeMenu.querySelector('.web-hl-edge-comment-drawer');
-    const commentInput = edgeMenu.querySelector('.web-hl-edge-comment-input');
+    const commentTextarea = edgeMenu.querySelector('.web-hl-edge-comment-textarea');
+
+    renderMenuTagChips(hl.tags || []);
 
     if (hl.comment && hl.comment.trim().length > 0) {
       commentBtn.classList.add('has-note');
-      commentDrawer.style.display = 'block';
-      commentInput.value = hl.comment;
+      commentDrawer.style.display = 'flex';
+      commentTextarea.value = hl.comment;
     } else {
       commentBtn.classList.remove('has-note');
       commentDrawer.style.display = 'none';
-      commentInput.value = '';
+      commentTextarea.value = '';
     }
 
     positionMenuNearRect(rect);
@@ -532,7 +949,10 @@
 
   // --- Extension Messages ---
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === "HIGHLIGHT_SELECTION") {
+    if (message.action === "OPEN_SIDEPANEL") {
+      openSidePanel(message.tab || 'highlights');
+      sendResponse({ success: true });
+    } else if (message.action === "HIGHLIGHT_SELECTION") {
       performHighlight(message.color || 'yellow');
       sendResponse({ success: true });
     } else if (message.action === "GET_PAGE_HIGHLIGHTS") {

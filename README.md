@@ -14,7 +14,7 @@ Works identically on **Windows**, **Linux**, and **macOS**. No technical setup o
 Choose **Option A** (Easiest) or **Option B**:
 
 - **Option A (No Git needed)**:
-  1. Download the latest **`web-highlighter-extension-v1.3.0.zip`** from the [GitHub Releases page](https://github.com/shirishbose/paper-highlighter-extension/releases).
+  1. Download the latest **`web-highlighter-extension-v1.4.0.zip`** from the [GitHub Releases page](https://github.com/shirishbose/paper-highlighter-extension/releases).
   2. Extract / Unzip the folder anywhere on your computer (e.g., `Documents` or `Downloads`).
 
 - **Option B (Using Git)**:
@@ -58,23 +58,29 @@ Then go to `brave://extensions` (or `chrome://extensions`) and click the 🔄 **
 
 ## 🚀 How to Use
 
-### 1. Highlight Text (Web Highlights & Edge-Style Mini-Menu)
+### 1. Highlight Text & Minimalist Mini-Menu
 - Drag your mouse to select any text on any webpage or paper.
-- A floating mini-menu pops up automatically right above your selection with **tactile 3D color buttons**.
-- The highlighted text on the webpage appears in a clean, flat **2D marker style** (without distracting shaded bottom borders).
-- Choose from **8 preset colors** (`🟡 Yellow`, `🟢 Green`, `🔵 Blue`, `🟣 Purple`, `🌸 Pink`, `🟠 Orange`, `🔴 Red`, `🔷 Teal`) or pick any custom hex shade using the **🎨 3D Color Wheel**.
-- **Instant Color Switch**: Click on any existing highlight on a page and tap another color dot or choose a new shade on the color wheel to switch colors instantly.
-- **Auto-Saved Immediately**: Every highlight and color change is preserved in local storage.
-- **1-Click Deletion & Notes**: Click `🗑️ Delete` or `💬 Note` to manage your annotations.
+- A floating mini-menu pops up right above your selection with **subtle, clean circular color dots**.
+- Highlights on the webpage appear in a clean, flat **2D marker style** (without shaded bottom borders).
+- Choose from **8 preset colors** (`🟡 Yellow`, `🟢 Green`, `🔵 Blue`, `🟣 Purple`, `🌸 Pink`, `🟠 Orange`, `🔴 Red`, `🔷 Teal`) or pick any custom hex shade using the **🎨 Native Color Wheel**.
+- **Instant Color Switch**: Click on any existing highlight on a page and tap another color circle to change color instantly.
 
-### 2. Add Comments & Notes
+### 2. Multi-Line Notes & Tag Management
 - Click the `💬 Note` button in the floating menu.
-- A slim inline comment field slides out right below the mini-menu.
-- Type your notes—it **auto-saves continuously** as you type.
+- A spacious multi-line textarea opens to capture detailed thoughts and observations.
+- Add tags (`#thesis`, `#methodology`, `#intro`) by typing and pressing `Enter`. Tags are saved and searchable across the dashboard.
 
-### 3. Click Existing Highlights
-- Click any highlighted passage on the page anytime to bring back the mini-menu with all options (change color, edit note, delete).
-- Click anywhere outside to dismiss the menu.
+### 3. In-Page Collapsible Side Panel & AI Portal (Gemini / ChatGPT / Claude)
+- Click the **📑 side tab** pinned to the right edge of your screen (or click the Side Panel icon in the mini-menu) to open the slide-out panel.
+- **Highlights & Notes Tab**: Browse, jump to, and edit all highlights and tags on the current page.
+- **AI Assistant Tab**: Connect with your existing accounts on **Google Gemini**, **ChatGPT**, or **Claude**. Select research prompt templates (Summary, Methodology Analysis, Critical Peer-Review, or BibTeX Notes) and launch the portal with your context in 1 click.
+- **Account Sync Tab**: Connect your **Gmail account** to track and sync your research annotations across browsers.
+
+### 4. Visual Blocks Dashboard & Tag Sorting
+- Click the extension icon and select **Dashboard** to view your library organized in a modern **Cards/Blocks Grid**.
+- Filter by tags using the interactive **Tag Cloud** in the sidebar.
+- Sort pages by **Most Recent**, **Most Highlights**, **Tags (A-Z)**, or **Page Title**.
+- Expand any page block to view, edit, or copy individual highlights and notes.
 
 ---
 

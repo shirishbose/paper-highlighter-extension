@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const scholarSearchInput = document.getElementById('scholar-search-input');
 
   const btnOpenDashboard = document.getElementById('btn-open-dashboard');
+  const btnOpenSidepanel = document.getElementById('btn-open-sidepanel');
   const btnExportDropdown = document.getElementById('btn-export-dropdown');
   const exportMenu = document.getElementById('export-menu');
   const btnExportTxtPage = document.getElementById('btn-export-txt-page');
@@ -37,6 +38,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnExportMdPage = document.getElementById('btn-export-md-page');
   const btnExportMdAll = document.getElementById('btn-export-md-all');
   const btnExportJson = document.getElementById('btn-export-json');
+
+  if (btnOpenSidepanel) {
+    btnOpenSidepanel.addEventListener('click', () => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs && tabs[0] && tabs[0].id) {
+          chrome.tabs.sendMessage(tabs[0].id, { action: "OPEN_SIDEPANEL", tab: "highlights" }, () => {
+            window.close();
+          });
+        }
+      });
+    });
+  }
 
   if (btnOpenDashboard) {
     btnOpenDashboard.addEventListener('click', () => {
@@ -208,6 +221,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="hl-card-comment">
               <span class="comment-icon">💬</span>
               <span>${escapeHtml(hl.comment)}</span>
+            </div>
+          ` : ''}
+          ${(hl.tags && hl.tags.length > 0) ? `
+            <div style="display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px;">
+              ${hl.tags.map(t => `<span style="font-size: 10px; padding: 1px 5px; border-radius: 8px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">#${escapeHtml(t)}</span>`).join('')}
             </div>
           ` : ''}
           ${paperUrl ? `

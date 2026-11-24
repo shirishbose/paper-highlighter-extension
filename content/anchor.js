@@ -265,7 +265,7 @@ const WebHighlighterAnchor = (() => {
     return { exact, prefix, suffix };
   }
 
-  function createAnchor(range, color = 'yellow', comment = '', paper = null) {
+  function createAnchor(range, color = 'yellow', comment = '', paper = null, tags = []) {
     const { exact, prefix, suffix } = getSurroundingContext(range);
     const startDesc = getTextNodeDescriptor(range.startContainer);
     const endDesc = getTextNodeDescriptor(range.endContainer);
@@ -275,6 +275,7 @@ const WebHighlighterAnchor = (() => {
       id,
       color,
       comment: comment || '',
+      tags: Array.isArray(tags) ? tags : [],
       exact,
       prefix,
       suffix,
