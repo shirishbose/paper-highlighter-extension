@@ -287,15 +287,19 @@ mark.web-hl-pulse {
   background: #eff6ff !important;
 }
 
-/* Bigger Comment & Tags Drawer */
+/* Comment & Tags Drawer (Hidden by default, opens strictly on .web-hl-open) */
 .web-hl-edge-comment-drawer {
+  display: none !important;
   margin-top: 8px !important;
   padding: 8px 4px 4px 4px !important;
   border-top: 1px solid #f1f5f9 !important;
   width: 290px !important;
-  display: flex !important;
   flex-direction: column !important;
   gap: 6px !important;
+}
+
+.web-hl-edge-comment-drawer.web-hl-open {
+  display: flex !important;
 }
 
 .web-hl-edge-comment-textarea {

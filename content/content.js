@@ -245,17 +245,30 @@
     `;
     document.body.appendChild(triggerBubble);
 
-    const activateMenu = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    let hoverTimeout = null;
+
+    const openMenu = () => {
       if (activeSelectionRange) {
         hideTriggerBubble();
         showEdgeMenuForSelection(activeSelectionRange);
       }
     };
 
-    triggerBubble.addEventListener('mouseenter', activateMenu);
-    triggerBubble.addEventListener('mousedown', activateMenu);
+    triggerBubble.addEventListener('mouseenter', () => {
+      clearTimeout(hoverTimeout);
+      hoverTimeout = setTimeout(openMenu, 100); // 0.1s hover delay
+    });
+
+    triggerBubble.addEventListener('mouseleave', () => {
+      clearTimeout(hoverTimeout);
+    });
+
+    triggerBubble.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearTimeout(hoverTimeout);
+      openMenu();
+    });
   }
 
   function hideTriggerBubble() {
@@ -351,8 +364,8 @@
           </svg>
         </button>
       </div>
-      <!-- Comment & Plain Tags Drawer (Collapsed by default) -->
-      <div class="web-hl-edge-comment-drawer" style="display: none;">
+      <!-- Comment & Plain Tags Drawer (Hidden by default, opens only on comment button click) -->
+      <div class="web-hl-edge-comment-drawer">
         <textarea class="web-hl-edge-comment-textarea" placeholder="Add a research note (auto-saves)..." rows="3"></textarea>
         <div class="web-hl-edge-tags-section">
           <div class="web-hl-tags-chips"></div>
@@ -414,15 +427,15 @@
         performHighlight('yellow');
       }
 
-      if (commentDrawer.style.display === 'none') {
-        commentDrawer.style.display = 'flex';
+      if (!commentDrawer.classList.contains('web-hl-open')) {
+        commentDrawer.classList.add('web-hl-open');
         if (currentTargetHighlight) {
           commentTextarea.value = currentTargetHighlight.comment || '';
           renderMenuTagChips(currentTargetHighlight.tags || []);
         }
         setTimeout(() => commentTextarea.focus(), 30);
       } else {
-        commentDrawer.style.display = 'none';
+        commentDrawer.classList.remove('web-hl-open');
       }
     });
 
@@ -1125,9 +1138,9 @@ Provide a direct, rigorous, objective, and defense-ready academic answer based o
     const commentBtn = edgeMenu.querySelector('.btn-comment');
     commentBtn.classList.remove('has-note');
 
-    // Comment drawer stays strictly closed! Only show the color line
+    // Comment drawer stays strictly closed! Only show the thin color strip
     const commentDrawer = edgeMenu.querySelector('.web-hl-edge-comment-drawer');
-    commentDrawer.style.display = 'none';
+    commentDrawer.classList.remove('web-hl-open');
 
     updateMenuColorSelection(null);
     updateCustomDotsUI();
@@ -1164,8 +1177,8 @@ Provide a direct, rigorous, objective, and defense-ready academic answer based o
       commentTextarea.value = '';
     }
 
-    // Never auto-open comment drawer - only show the color line until Note button is clicked!
-    commentDrawer.style.display = 'none';
+    // Never auto-open comment drawer - only show the thin color strip until Note button is clicked!
+    commentDrawer.classList.remove('web-hl-open');
 
     positionMenuNearRect(rect);
   }
@@ -1196,7 +1209,8 @@ Provide a direct, rigorous, objective, and defense-ready academic answer based o
   function hideEdgeMenu() {
     if (edgeMenu) {
       edgeMenu.classList.remove('web-hl-visible');
-      edgeMenu.querySelector('.web-hl-edge-comment-drawer').style.display = 'none';
+      const drawer = edgeMenu.querySelector('.web-hl-edge-comment-drawer');
+      if (drawer) drawer.classList.remove('web-hl-open');
       currentTargetHighlight = null;
     }
   }
