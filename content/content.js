@@ -1079,9 +1079,8 @@ Provide a direct, rigorous, objective, and defense-ready academic answer based o
     activeSelectionRange = range.cloneRange();
     currentTargetHighlight = null;
 
-    hideTriggerBubble();
-    // Directly show the thin color panel strip (research note & tag box only open when comment icon is clicked)
-    showEdgeMenuForSelection(range);
+    // Show floating pen bubble immediately after selection ends
+    showTriggerBubbleForSelection(range);
   }
 
   function updateMenuColorSelection(selectedColor) {
