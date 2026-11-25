@@ -463,6 +463,251 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
+  // Journal Identification & High-Resolution Cover / Banner Mapping
+  function resolveJournalBranding(url, paper, pageTitle) {
+    const rawUrl = (url || '').toLowerCase();
+    const jName = ((paper && paper.journal) || '').toLowerCase();
+    const doi = ((paper && paper.doi) || '').toLowerCase();
+    const title = (pageTitle || '').toLowerCase();
+
+    const isAcademic = Boolean(
+      (paper && (paper.isPaper || paper.doi || paper.journal || paper.journalImage)) ||
+      rawUrl.includes('sciencedirect.com/science/article') ||
+      rawUrl.includes('onlinelibrary.wiley.com/doi') ||
+      rawUrl.includes('nature.com/articles') ||
+      rawUrl.includes('link.springer.com/article') ||
+      rawUrl.includes('arxiv.org') ||
+      rawUrl.includes('oup.com/') ||
+      rawUrl.includes('ieee.org/document') ||
+      rawUrl.includes('biorxiv.org') ||
+      rawUrl.includes('pubmed.ncbi.nlm.nih.gov')
+    );
+
+    if (!isAcademic) {
+      return null;
+    }
+
+    // 1. Earth and Planetary Science Letters (EPSL) - Elsevier / ScienceDirect
+    if (
+      rawUrl.includes('s0012821x') || rawUrl.includes('0012-821x') || rawUrl.includes('earth-and-planetary-science-letters') ||
+      doi.includes('j.epsl') || doi.includes('s0012-821x') ||
+      jName.includes('earth and planetary science') || jName.includes('epsl')
+    ) {
+      return {
+        isJournal: true,
+        journalName: 'Earth and Planetary Science Letters',
+        publisherName: 'ScienceDirect / Elsevier',
+        image: (paper && paper.journalImage) ? paper.journalImage : 'https://ars.els-cdn.com/content/image/1-s2.0-S0012821X13X00184-cov200h.gif',
+        imageType: 'cover',
+        primaryColor: '#f97316',
+        bgLight: '#fff7ed',
+        borderColor: '#fdba74',
+        textColor: '#c2410c'
+      };
+    }
+
+    // 2. Journal of Geophysical Research: Solid Earth (JGR) - AGU / Wiley
+    if (
+      rawUrl.includes('21699356') || rawUrl.includes('2169-9356') || rawUrl.includes('2169-9313') || rawUrl.includes('jgrb') ||
+      doi.includes('10.1002/201') || doi.includes('10.1029/20') ||
+      jName.includes('solid earth') || (jName.includes('journal of geophysical research') && !jName.includes('planets') && !jName.includes('atmosphere'))
+    ) {
+      return {
+        isJournal: true,
+        journalName: 'JGR: Solid Earth',
+        publisherName: 'AGU / Wiley',
+        image: (paper && paper.journalImage) ? paper.journalImage : 'https://agupubs.onlinelibrary.wiley.com/pb-assets/journal-banners/21699356-1586276388683.jpg',
+        imageType: 'banner',
+        primaryColor: '#0284c7',
+        bgLight: '#f0f9ff',
+        borderColor: '#7dd3fc',
+        textColor: '#0369a1'
+      };
+    }
+
+    // 3. Geophysical Research Letters (GRL) - AGU / Wiley
+    if (
+      rawUrl.includes('19448007') || rawUrl.includes('1944-8007') || rawUrl.includes('0094-8276') ||
+      jName.includes('geophysical research letters') || jName.includes('grl')
+    ) {
+      return {
+        isJournal: true,
+        journalName: 'Geophysical Research Letters',
+        publisherName: 'AGU / Wiley',
+        image: (paper && paper.journalImage) ? paper.journalImage : 'https://agupubs.onlinelibrary.wiley.com/pb-assets/journal-banners/19448007-1586276388683.jpg',
+        imageType: 'banner',
+        primaryColor: '#0284c7',
+        bgLight: '#f0f9ff',
+        borderColor: '#7dd3fc',
+        textColor: '#0369a1'
+      };
+    }
+
+    // 4. Geophysical Journal International (GJI) - Oxford Academic
+    if (
+      rawUrl.includes('oup.com/gji') || rawUrl.includes('0956-540x') || rawUrl.includes('1365-246x') ||
+      doi.includes('10.1093/gji') || doi.includes('10.1111/j.1365-246x') ||
+      jName.includes('geophysical journal international') || jName.includes('gji')
+    ) {
+      return {
+        isJournal: true,
+        journalName: 'Geophysical Journal International',
+        publisherName: 'Oxford Academic / RAS',
+        image: (paper && paper.journalImage) ? paper.journalImage : 'https://oup.silverchair-cdn.com/data/Journals/gji/journal_issue_covers.png',
+        imageType: 'cover',
+        primaryColor: '#881337',
+        bgLight: '#fff1f2',
+        borderColor: '#fecdd3',
+        textColor: '#9f1239'
+      };
+    }
+
+    // 5. Tectonics (AGU / Wiley)
+    if (
+      rawUrl.includes('19449194') || rawUrl.includes('1944-9194') || rawUrl.includes('0278-7407') ||
+      jName.includes('tectonics')
+    ) {
+      return {
+        isJournal: true,
+        journalName: 'Tectonics',
+        publisherName: 'AGU / Wiley',
+        image: (paper && paper.journalImage) ? paper.journalImage : 'https://agupubs.onlinelibrary.wiley.com/pb-assets/journal-banners/19449194-1586276388683.jpg',
+        imageType: 'banner',
+        primaryColor: '#0284c7',
+        bgLight: '#f0f9ff',
+        borderColor: '#7dd3fc',
+        textColor: '#0369a1'
+      };
+    }
+
+    // 6. Tectonophysics - Elsevier / ScienceDirect
+    if (
+      rawUrl.includes('s00401951') || rawUrl.includes('0040-1951') ||
+      doi.includes('j.tecto') ||
+      jName.includes('tectonophysics')
+    ) {
+      return {
+        isJournal: true,
+        journalName: 'Tectonophysics',
+        publisherName: 'ScienceDirect / Elsevier',
+        image: (paper && paper.journalImage) ? paper.journalImage : 'https://ars.els-cdn.com/content/image/1-s2.0-S00401951-cov200h.gif',
+        imageType: 'cover',
+        primaryColor: '#f97316',
+        bgLight: '#fff7ed',
+        borderColor: '#fdba74',
+        textColor: '#c2410c'
+      };
+    }
+
+    // 7. Nature / Nature Geoscience
+    if (
+      rawUrl.includes('nature.com') || jName.includes('nature')
+    ) {
+      const isGeoscience = jName.includes('geoscience') || rawUrl.includes('/ngeo');
+      return {
+        isJournal: true,
+        journalName: isGeoscience ? 'Nature Geoscience' : 'Nature',
+        publisherName: 'Springer Nature',
+        image: 'https://media.springernature.com/full/springer-static/image/art%3A10.1038%2Fngeo/MediaObjects/ngeo_logo.png',
+        imageType: 'banner',
+        primaryColor: '#dc2626',
+        bgLight: '#fef2f2',
+        borderColor: '#fca5a5',
+        textColor: '#b91c1c'
+      };
+    }
+
+    // 8. Bulletin of the Seismological Society of America (BSSA)
+    if (jName.includes('bssa') || jName.includes('seismological society of america') || rawUrl.includes('/bssa/')) {
+      return {
+        isJournal: true,
+        journalName: 'BSSA',
+        publisherName: 'SSA / GeoScienceWorld',
+        image: 'https://pubs.geoscienceworld.org/data/Journals/bssa/journal_issue_covers.png',
+        imageType: 'cover',
+        primaryColor: '#1e3a8a',
+        bgLight: '#eff6ff',
+        borderColor: '#bfdbfe',
+        textColor: '#1e40af'
+      };
+    }
+
+    // 9. arXiv
+    if (rawUrl.includes('arxiv.org') || (paper && paper.arxivId)) {
+      return {
+        isJournal: true,
+        journalName: 'arXiv Pre-print',
+        publisherName: 'Cornell University',
+        image: 'https://static.arxiv.org/static/browse/0.3.4/images/arxiv-logo-web.svg',
+        imageType: 'banner',
+        primaryColor: '#991b1b',
+        bgLight: '#fef2f2',
+        borderColor: '#fecaca',
+        textColor: '#991b1b'
+      };
+    }
+
+    // 10. Any other paper with an extracted journalImage from DOM
+    if (paper && paper.journalImage) {
+      const pubBrand = getWebsiteBrand(url);
+      return {
+        isJournal: true,
+        journalName: paper.journal || pubBrand.name || 'Academic Journal',
+        publisherName: pubBrand.name || 'Peer-Reviewed Journal',
+        image: paper.journalImage,
+        imageType: paper.journalImageType || 'cover',
+        primaryColor: pubBrand.primaryColor,
+        bgLight: pubBrand.bgLight,
+        borderColor: pubBrand.borderColor,
+        textColor: pubBrand.textColor
+      };
+    }
+
+    // 11. Generic ScienceDirect paper fallback
+    if (rawUrl.includes('sciencedirect.com')) {
+      return {
+        isJournal: true,
+        journalName: paper?.journal || 'ScienceDirect Article',
+        publisherName: 'Elsevier ScienceDirect',
+        image: '',
+        imageType: 'cover',
+        primaryColor: '#f97316',
+        bgLight: '#fff7ed',
+        borderColor: '#fdba74',
+        textColor: '#c2410c'
+      };
+    }
+
+    // 12. Generic Wiley paper fallback
+    if (rawUrl.includes('wiley.com')) {
+      return {
+        isJournal: true,
+        journalName: paper?.journal || 'Wiley Online Library',
+        publisherName: 'Wiley Academic',
+        image: '',
+        imageType: 'banner',
+        primaryColor: '#7c3aed',
+        bgLight: '#faf5ff',
+        borderColor: '#ddd6fe',
+        textColor: '#6d28d9'
+      };
+    }
+
+    // 13. Other academic paper
+    const pubBrand = getWebsiteBrand(url);
+    return {
+      isJournal: true,
+      journalName: paper?.journal || 'Research Paper',
+      publisherName: pubBrand.name || 'Academic Publisher',
+      image: '',
+      imageType: 'cover',
+      primaryColor: pubBrand.primaryColor,
+      bgLight: pubBrand.bgLight,
+      borderColor: pubBrand.borderColor,
+      textColor: pubBrand.textColor
+    };
+  }
+
   function renderFeed(pages) {
     if (pages.length === 0) {
       emptyState.classList.remove('hidden');
@@ -476,7 +721,8 @@ document.addEventListener('DOMContentLoaded', () => {
       let hostname = '';
       try { hostname = new URL(page.url).hostname; } catch(e) { hostname = page.url; }
 
-      const brand = getWebsiteBrand(page.url);
+      const journalBranding = resolveJournalBranding(page.url, page.paper, page.title);
+      const brand = journalBranding || getWebsiteBrand(page.url);
       const paper = page.paper;
       const paperUrl = (paper && paper.paperUrl) ? paper.paperUrl : page.url;
       const pdfUrl = (paper && paper.pdfUrl) ? paper.pdfUrl : '';
@@ -492,8 +738,67 @@ document.addEventListener('DOMContentLoaded', () => {
         ? page.allTags.map(t => `<span class="dash-block-tag" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join('')
         : '';
 
-      return `
-        <div class="dash-page-block" data-url="${escapeHtml(page.url)}" style="--block-brand-color: ${brand.primaryColor}; --block-brand-border: ${brand.borderColor};">
+      let topStripHtml = '';
+
+      if (journalBranding && journalBranding.image && journalBranding.imageType === 'banner') {
+        // Wide Edge-to-Edge Hero Banner Strip (Wiley AGU, Nature, arXiv)
+        topStripHtml = `
+          <div class="dash-journal-hero-banner">
+            <img src="${escapeHtml(journalBranding.image)}" alt="${escapeHtml(journalBranding.journalName)}" class="dash-journal-hero-banner-img" onerror="this.style.display='none';" />
+            <div class="dash-journal-banner-overlay"></div>
+            <div class="dash-journal-banner-topbar">
+              <span class="dash-journal-banner-pill">
+                📖 ${escapeHtml(journalBranding.journalName)}
+              </span>
+              <div class="dash-journal-strip-actions">
+                ${paper && paper.doi ? `
+                  <span class="dash-journal-doi-badge-dark" title="DOI: ${escapeHtml(paper.doi)}">
+                    DOI: ${escapeHtml(paper.doi)}
+                  </span>
+                ` : ''}
+                <button class="dash-delete-page-btn dash-delete-btn-trans" data-url="${escapeHtml(page.url)}" title="Delete page highlights">
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (journalBranding && journalBranding.image && journalBranding.imageType === 'cover') {
+        // Journal Cover Thumbnail & Title Strip (ScienceDirect EPSL, GJI, Tectonophysics)
+        topStripHtml = `
+          <div class="dash-journal-cover-strip" style="background: linear-gradient(135deg, ${brand.bgLight} 0%, #ffffff 100%); border-bottom: 1px solid ${brand.borderColor};">
+            <div class="dash-journal-cover-main">
+              <div class="dash-journal-cover-img-wrap">
+                <img src="${escapeHtml(journalBranding.image)}" alt="${escapeHtml(journalBranding.journalName)}" class="dash-journal-cover-img" onerror="this.parentElement.style.display='none';" />
+              </div>
+              <div class="dash-journal-cover-info">
+                <span class="dash-journal-cover-title" title="${escapeHtml(journalBranding.journalName)}">
+                  ${escapeHtml(journalBranding.journalName)}
+                </span>
+                <span class="dash-journal-cover-pub" style="color: ${brand.textColor};">
+                  ${escapeHtml(journalBranding.publisherName)}
+                </span>
+              </div>
+            </div>
+            <div class="dash-journal-strip-actions">
+              ${paper && paper.doi ? `
+                <span class="dash-journal-doi-badge" title="DOI: ${escapeHtml(paper.doi)}">
+                  📄 DOI
+                </span>
+              ` : ''}
+              <button class="dash-delete-page-btn" data-url="${escapeHtml(page.url)}" title="Delete page highlights">
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        // Standard Webpage Top Strip
+        topStripHtml = `
           <div class="dash-block-top">
             <a href="${escapeHtml(page.url)}" target="_blank" class="dash-block-domain-badge" style="background: ${brand.bgLight}; color: ${brand.textColor}; border: 1px solid ${brand.borderColor}; font-weight: 700;">
               <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background: ${brand.primaryColor}; margin-right: 4px;"></span>
@@ -510,6 +815,12 @@ document.addEventListener('DOMContentLoaded', () => {
               </svg>
             </button>
           </div>
+        `;
+      }
+
+      return `
+        <div class="dash-page-block" data-url="${escapeHtml(page.url)}" style="--block-brand-color: ${brand.primaryColor}; --block-brand-border: ${brand.borderColor};">
+          ${topStripHtml}
 
           <div class="dash-block-body">
             <a href="${escapeHtml(paperUrl)}" target="_blank" class="dash-block-title" title="${escapeHtml(page.title)}">

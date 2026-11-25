@@ -197,6 +197,16 @@
   async function init() {
     if (window.WebHighlighterPaperDetector) {
       detectedPaper = window.WebHighlighterPaperDetector.detectPaperMetadata();
+      // Asynchronous re-check to capture lazy-loaded journal cover/banner images
+      setTimeout(() => {
+        const fresh = window.WebHighlighterPaperDetector.detectPaperMetadata();
+        if (fresh && (!detectedPaper || !detectedPaper.journalImage) && fresh.journalImage) {
+          detectedPaper = fresh;
+          if (currentHighlights.length > 0) {
+            updatePageIndex(currentHighlights.length);
+          }
+        }
+      }, 1000);
     }
 
     await loadExtensionState();

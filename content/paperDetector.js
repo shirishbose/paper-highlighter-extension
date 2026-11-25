@@ -232,7 +232,54 @@ const WebHighlighterPaperDetector = (() => {
       }
     }
 
-    // 3. Fallback resolution
+    // 3. Extract Journal Cover / Banner / Logo Image
+    let journalImage = '';
+    let journalImageType = 'cover'; // 'cover' or 'banner'
+
+    if (hostname.includes('sciencedirect.com')) {
+      const coverEl = document.querySelector('a.publication-title-link img, img[src*="ars.els-cdn.com/content/image"], .publication-brand img, .publication-cover-image img, img.cover-img, img[alt*="cover" i], a[href*="/journal/"] img');
+      if (coverEl && coverEl.src) {
+        journalImage = coverEl.src;
+        journalImageType = 'cover';
+      }
+    } else if (hostname.includes('wiley.com')) {
+      const bannerEl = document.querySelector('img[src*="journal-banners"], .journal-header img, .banner-image img, header img[src*="onlinelibrary"]');
+      if (bannerEl && bannerEl.src) {
+        journalImage = bannerEl.src;
+        journalImageType = 'banner';
+      } else {
+        const coverEl = document.querySelector('.cover-image img, img[alt*="cover" i]');
+        if (coverEl && coverEl.src) {
+          journalImage = coverEl.src;
+          journalImageType = 'cover';
+        }
+      }
+    } else if (hostname.includes('nature.com') || hostname.includes('springer.com')) {
+      const el = document.querySelector('.c-journal-header img, header .c-header__logo img, .c-article-header__logo img, img[class*="cover"], img[src*="nature.com"]');
+      if (el && el.src) {
+        journalImage = el.src;
+        journalImageType = (el.classList && el.classList.contains('c-journal-header')) || el.src.includes('banner') ? 'banner' : 'cover';
+      }
+    } else if (hostname.includes('oup.com')) {
+      const el = document.querySelector('.widget-IssueCover img, img[src*="journal_issue_covers"], .al-header-logo img, .journal-logo img');
+      if (el && el.src) {
+        journalImage = el.src;
+        journalImageType = 'cover';
+      }
+    } else if (hostname.includes('arxiv.org')) {
+      journalImage = 'https://static.arxiv.org/static/browse/0.3.4/images/arxiv-logo-web.svg';
+      journalImageType = 'banner';
+    }
+
+    if (!journalImage) {
+      const ogImg = getMeta(['og:image', 'twitter:image']);
+      if (ogImg && !ogImg.includes('favicon') && !ogImg.includes('default-logo') && !ogImg.includes('fallback') && (ogImg.startsWith('http://') || ogImg.startsWith('https://'))) {
+        journalImage = ogImg;
+        journalImageType = 'banner';
+      }
+    }
+
+    // 4. Fallback resolution
     if (doi && !paperUrl) {
       paperUrl = `https://doi.org/${doi}`;
       isPaper = true;
@@ -276,6 +323,8 @@ const WebHighlighterPaperDetector = (() => {
       title: cleanTitle,
       authors: Array.isArray(authors) ? authors.slice(0, 8).join(', ') : (authors || ''),
       journal,
+      journalImage,
+      journalImageType,
       year,
       citedByCount,
       citedByUrl,
