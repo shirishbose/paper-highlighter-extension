@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Brave Web Highlighter & Notes",
-  "version": "1.5.5",
-  "description": "Highlight text, attach notes, and organize research papers with an Edge-style collapsible Side Panel. Works on all web pages and ePDF readers.",
+  "version": "1.5.6",
+  "description": "Highlight text, attach notes, and organize research papers with square publisher-branded cards and Google account tracking. Works on all web pages and ePDF readers.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -47,12 +47,6 @@
         "default": "Alt+H"
       },
       "description": "Highlight current text selection"
-    },
-    "toggle_sidebar": {
-      "suggested_key": {
-        "default": "Alt+S"
-      },
-      "description": "Toggle Side Panel on/off"
     }
   }
 }

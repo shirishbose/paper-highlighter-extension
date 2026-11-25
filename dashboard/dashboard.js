@@ -24,10 +24,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnClearTag = document.getElementById('btn-clear-tag');
   const tagCloudContainer = document.getElementById('dash-tag-cloud');
 
-  // Account Sync Elements
-  const dashAccountEmail = document.getElementById('dash-account-email');
-  const dashGmailInput = document.getElementById('dash-gmail-input');
-  const dashBtnConnectGmail = document.getElementById('dash-btn-connect-gmail');
+  // Gmail Auth & Tracking Elements
+  const dashAuthLoggedOut = document.getElementById('dash-auth-logged-out');
+  const dashAuthLoggedIn = document.getElementById('dash-auth-logged-in');
+  const dashLoginEmailInput = document.getElementById('dash-login-email-input');
+  const dashBtnGoogleLogin = document.getElementById('dash-btn-google-login');
+  const dashUserAvatar = document.getElementById('dash-user-avatar');
+  const dashLoggedEmail = document.getElementById('dash-logged-email');
+  const dashBtnSyncNow = document.getElementById('dash-btn-sync-now');
+  const dashBtnLogout = document.getElementById('dash-btn-logout');
 
   const pagesFeed = document.getElementById('pages-feed');
   const emptyState = document.getElementById('dash-empty-state');
@@ -45,9 +50,15 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.get(null, (items) => {
       allPagesData = [];
       const pageIndex = items.hl_page_index || [];
-      currentUserProfile = items.hl_user_profile || { email: '', syncedAt: '' };
+      currentUserProfile = items.hl_user_profile || { email: '', syncedAt: '', loggedIn: false };
 
-      updateAccountSyncUI();
+      // Purge any phantom "index" metadata item from storage permanently
+      const cleanedIndex = pageIndex.filter(p => p && p.url && p.url !== 'index' && p.url.includes('://'));
+      if (cleanedIndex.length !== pageIndex.length) {
+        chrome.storage.local.set({ hl_page_index: cleanedIndex });
+      }
+
+      updateAuthUI();
 
       let totalHighlights = 0;
       let totalNotes = 0;
@@ -55,9 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const allTagsCountMap = {};
 
       for (const [key, value] of Object.entries(items)) {
-        if (key.startsWith('hl_page_') && Array.isArray(value) && value.length > 0) {
+        if (key.startsWith('hl_page_') && key !== 'hl_page_index' && Array.isArray(value) && value.length > 0) {
           const rawUrl = decodeURIComponent(key.replace('hl_page_', ''));
-          const meta = pageIndex.find(p => p.url === rawUrl) || {};
+          if (rawUrl === 'index' || !rawUrl.includes('://')) continue;
+          const meta = cleanedIndex.find(p => p.url === rawUrl) || {};
 
           totalHighlights += value.length;
           totalNotes += value.filter(h => h.comment && h.comment.trim().length > 0).length;
@@ -101,31 +113,60 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function updateAccountSyncUI() {
-    if (dashAccountEmail) {
-      if (currentUserProfile && currentUserProfile.email) {
-        dashAccountEmail.textContent = currentUserProfile.email;
-        if (dashGmailInput) dashGmailInput.value = currentUserProfile.email;
-      } else {
-        dashAccountEmail.textContent = 'Not connected';
+  function updateAuthUI() {
+    if (!dashAuthLoggedOut || !dashAuthLoggedIn) return;
+    if (currentUserProfile && currentUserProfile.email && currentUserProfile.loggedIn) {
+      dashAuthLoggedOut.style.display = 'none';
+      dashAuthLoggedIn.style.display = 'block';
+      if (dashLoggedEmail) dashLoggedEmail.textContent = currentUserProfile.email;
+      if (dashUserAvatar) {
+        const initial = currentUserProfile.email.charAt(0).toUpperCase() || 'G';
+        dashUserAvatar.textContent = initial;
+      }
+    } else {
+      dashAuthLoggedOut.style.display = 'block';
+      dashAuthLoggedIn.style.display = 'none';
+      if (dashLoginEmailInput && currentUserProfile.email) {
+        dashLoginEmailInput.value = currentUserProfile.email;
       }
     }
   }
 
-  if (dashBtnConnectGmail) {
-    dashBtnConnectGmail.addEventListener('click', () => {
-      const email = dashGmailInput.value.trim();
-      if (email.includes('@')) {
+  if (dashBtnGoogleLogin) {
+    dashBtnGoogleLogin.addEventListener('click', () => {
+      let email = (dashLoginEmailInput ? dashLoginEmailInput.value : '').trim();
+      if (!email || !email.includes('@')) {
+        email = prompt("Enter your Google / Gmail account to track highlights:", "researcher@gmail.com");
+      }
+      if (email && email.includes('@')) {
         currentUserProfile = {
-          email: email,
+          email: email.trim(),
+          loggedIn: true,
           syncedAt: new Date().toISOString()
         };
         chrome.storage.local.set({ hl_user_profile: currentUserProfile }, () => {
-          updateAccountSyncUI();
-          dashBtnConnectGmail.textContent = '✓ Saved!';
-          setTimeout(() => { dashBtnConnectGmail.textContent = 'Save & Track'; }, 1500);
+          updateAuthUI();
         });
       }
+    });
+  }
+
+  if (dashBtnSyncNow) {
+    dashBtnSyncNow.addEventListener('click', () => {
+      currentUserProfile.syncedAt = new Date().toISOString();
+      chrome.storage.local.set({ hl_user_profile: currentUserProfile }, () => {
+        dashBtnSyncNow.textContent = '✓ Synced!';
+        setTimeout(() => { dashBtnSyncNow.textContent = '🔄 Sync'; }, 1500);
+      });
+    });
+  }
+
+  if (dashBtnLogout) {
+    dashBtnLogout.addEventListener('click', () => {
+      currentUserProfile.loggedIn = false;
+      chrome.storage.local.set({ hl_user_profile: currentUserProfile }, () => {
+        updateAuthUI();
+      });
     });
   }
 
@@ -287,6 +328,141 @@ document.addEventListener('DOMContentLoaded', () => {
     renderFeed(filteredPages);
   }
 
+  // Academic & Web Publisher Brand Color Mapping
+  function getWebsiteBrand(url) {
+    let hostname = '';
+    try { hostname = new URL(url).hostname.toLowerCase(); } catch(e) { hostname = (url || '').toLowerCase(); }
+
+    // Elsevier / ScienceDirect -> Vibrant Orange
+    if (hostname.includes('sciencedirect') || hostname.includes('elsevier')) {
+      return {
+        name: 'ScienceDirect',
+        primaryColor: '#f97316',
+        bgLight: '#fff7ed',
+        borderColor: '#fdba74',
+        textColor: '#c2410c'
+      };
+    }
+    // Nature
+    if (hostname.includes('nature.com')) {
+      return {
+        name: 'Nature',
+        primaryColor: '#dc2626',
+        bgLight: '#fef2f2',
+        borderColor: '#fca5a5',
+        textColor: '#b91c1c'
+      };
+    }
+    // SpringerLink
+    if (hostname.includes('springer')) {
+      return {
+        name: 'SpringerLink',
+        primaryColor: '#0284c7',
+        bgLight: '#f0f9ff',
+        borderColor: '#bae6fd',
+        textColor: '#0369a1'
+      };
+    }
+    // arXiv
+    if (hostname.includes('arxiv')) {
+      return {
+        name: 'arXiv',
+        primaryColor: '#991b1b',
+        bgLight: '#fef2f2',
+        borderColor: '#fecaca',
+        textColor: '#991b1b'
+      };
+    }
+    // IEEE Xplore
+    if (hostname.includes('ieee')) {
+      return {
+        name: 'IEEE Xplore',
+        primaryColor: '#0284c7',
+        bgLight: '#f0f9ff',
+        borderColor: '#7dd3fc',
+        textColor: '#075985'
+      };
+    }
+    // ACM Digital Library
+    if (hostname.includes('acm.org')) {
+      return {
+        name: 'ACM',
+        primaryColor: '#0d9488',
+        bgLight: '#f0fdfa',
+        borderColor: '#99f6e4',
+        textColor: '#0f766e'
+      };
+    }
+    // PubMed / NCBI / NIH
+    if (hostname.includes('ncbi.nlm.nih.gov') || hostname.includes('pubmed')) {
+      return {
+        name: 'PubMed',
+        primaryColor: '#1e3a8a',
+        bgLight: '#eff6ff',
+        borderColor: '#bfdbfe',
+        textColor: '#1e40af'
+      };
+    }
+    // Wiley Online Library
+    if (hostname.includes('wiley')) {
+      return {
+        name: 'Wiley',
+        primaryColor: '#7c3aed',
+        bgLight: '#faf5ff',
+        borderColor: '#ddd6fe',
+        textColor: '#6d28d9'
+      };
+    }
+    // Oxford Academic
+    if (hostname.includes('oup.com')) {
+      return {
+        name: 'Oxford Academic',
+        primaryColor: '#881337',
+        bgLight: '#fff1f2',
+        borderColor: '#fecdd3',
+        textColor: '#9f1239'
+      };
+    }
+    // Frontiers
+    if (hostname.includes('frontiersin')) {
+      return {
+        name: 'Frontiers',
+        primaryColor: '#059669',
+        bgLight: '#ecfdf5',
+        borderColor: '#a7f3d0',
+        textColor: '#047857'
+      };
+    }
+    // Wikipedia
+    if (hostname.includes('wikipedia')) {
+      return {
+        name: 'Wikipedia',
+        primaryColor: '#334155',
+        bgLight: '#f8fafc',
+        borderColor: '#cbd5e1',
+        textColor: '#1e293b'
+      };
+    }
+
+    // Deterministic jewel tones for other websites
+    const palettes = [
+      { primaryColor: '#2563eb', bgLight: '#eff6ff', borderColor: '#bfdbfe', textColor: '#1d4ed8' },
+      { primaryColor: '#059669', bgLight: '#ecfdf5', borderColor: '#a7f3d0', textColor: '#047857' },
+      { primaryColor: '#7c3aed', bgLight: '#faf5ff', borderColor: '#ddd6fe', textColor: '#6d28d9' },
+      { primaryColor: '#d97706', bgLight: '#fffbeb', borderColor: '#fde68a', textColor: '#b45309' },
+      { primaryColor: '#e11d48', bgLight: '#fff1f2', borderColor: '#fecdd3', textColor: '#be123c' },
+      { primaryColor: '#0891b2', bgLight: '#ecfeff', borderColor: '#a5f3fc', textColor: '#0e7490' },
+      { primaryColor: '#4f46e5', bgLight: '#eef2ff', borderColor: '#c7d2fe', textColor: '#3730a3' }
+    ];
+    let hash = 0;
+    for (let i = 0; i < hostname.length; i++) hash = ((hash << 5) - hash) + hostname.charCodeAt(i);
+    const picked = palettes[Math.abs(hash) % palettes.length];
+    return {
+      name: hostname.replace(/^www\./, ''),
+      ...picked
+    };
+  }
+
   function renderFeed(pages) {
     if (pages.length === 0) {
       emptyState.classList.remove('hidden');
@@ -300,6 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let hostname = '';
       try { hostname = new URL(page.url).hostname; } catch(e) { hostname = page.url; }
 
+      const brand = getWebsiteBrand(page.url);
       const paper = page.paper;
       const paperUrl = (paper && paper.paperUrl) ? paper.paperUrl : page.url;
       const pdfUrl = (paper && paper.pdfUrl) ? paper.pdfUrl : '';
@@ -316,10 +493,11 @@ document.addEventListener('DOMContentLoaded', () => {
         : '';
 
       return `
-        <div class="dash-page-block" data-url="${escapeHtml(page.url)}">
+        <div class="dash-page-block" data-url="${escapeHtml(page.url)}" style="--block-brand-color: ${brand.primaryColor}; --block-brand-border: ${brand.borderColor};">
           <div class="dash-block-top">
-            <a href="${escapeHtml(page.url)}" target="_blank" class="dash-block-domain-badge">
-              🌐 ${escapeHtml(hostname)}
+            <a href="${escapeHtml(page.url)}" target="_blank" class="dash-block-domain-badge" style="background: ${brand.bgLight}; color: ${brand.textColor}; border: 1px solid ${brand.borderColor}; font-weight: 700;">
+              <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background: ${brand.primaryColor}; margin-right: 4px;"></span>
+              ${escapeHtml(brand.name || hostname)}
             </a>
             ${paper && paper.doi ? `
               <span class="dash-paper-tag" style="font-size: 10.5px; padding: 1px 6px;">
