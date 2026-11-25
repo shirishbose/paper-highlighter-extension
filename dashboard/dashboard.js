@@ -110,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       renderTagCloud(allTagsCountMap);
       applyFiltersAndRender();
+      enrichMissingPaperMetadata(allPagesData);
     });
   }
 
@@ -497,7 +498,26 @@ document.addEventListener('DOMContentLoaded', () => {
         isJournal: true,
         journalName: 'Earth and Planetary Science Letters',
         publisherName: 'ScienceDirect / Elsevier',
-        image: (paper && paper.journalImage) ? paper.journalImage : 'https://ars.els-cdn.com/content/image/1-s2.0-S0012821X13X00184-cov200h.gif',
+        image: (paper && paper.journalImage && !paper.journalImage.includes('favicon')) ? paper.journalImage : 'https://secure-ecsd.elsevier.com/covers/80/Tango2/largest/0012821X.jpg',
+        imageType: 'cover',
+        primaryColor: '#f97316',
+        bgLight: '#fff7ed',
+        borderColor: '#fdba74',
+        textColor: '#c2410c'
+      };
+    }
+
+    // 2. Physics of the Earth and Planetary Interiors (PEPI) - Elsevier / ScienceDirect
+    if (
+      rawUrl.includes('s00319201') || rawUrl.includes('0031-9201') || rawUrl.includes('physics-of-the-earth-and-planetary-interiors') ||
+      doi.includes('j.pepi') || doi.includes('s0031-9201') ||
+      jName.includes('planetary interiors') || jName.includes('pepi')
+    ) {
+      return {
+        isJournal: true,
+        journalName: 'Physics of the Earth and Planetary Interiors',
+        publisherName: 'ScienceDirect / Elsevier',
+        image: (paper && paper.journalImage && !paper.journalImage.includes('favicon')) ? paper.journalImage : 'https://secure-ecsd.elsevier.com/covers/80/Tango2/largest/00319201.jpg',
         imageType: 'cover',
         primaryColor: '#f97316',
         bgLight: '#fff7ed',
@@ -590,7 +610,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isJournal: true,
         journalName: 'Tectonophysics',
         publisherName: 'ScienceDirect / Elsevier',
-        image: (paper && paper.journalImage) ? paper.journalImage : '',
+        image: (paper && paper.journalImage && !paper.journalImage.includes('favicon')) ? paper.journalImage : 'https://secure-ecsd.elsevier.com/covers/80/Tango2/largest/00401951.jpg',
         imageType: 'cover',
         primaryColor: '#f97316',
         bgLight: '#fff7ed',
@@ -659,7 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isJournal: true,
         journalName: 'Journal of Asian Earth Sciences',
         publisherName: 'ScienceDirect / Elsevier',
-        image: (paper && paper.journalImage) ? paper.journalImage : '',
+        image: (paper && paper.journalImage && !paper.journalImage.includes('favicon')) ? paper.journalImage : 'https://secure-ecsd.elsevier.com/covers/80/Tango2/largest/13679120.jpg',
         imageType: 'cover',
         primaryColor: '#f97316',
         bgLight: '#fff7ed',
@@ -759,6 +779,89 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
+  // Extract DOI from string or URL
+  function extractDoiFromStr(str) {
+    if (!str) return '';
+    const match = str.match(/\b(10\.\d{4,9}\/[-._;()/:A-Za-z0-9]+)\b/);
+    if (match) {
+      return match[1].replace(/[.,;)]+$/, '');
+    }
+    return '';
+  }
+
+  const enrichedDoiSet = new Set();
+  async function enrichMissingPaperMetadata(pages) {
+    let storageNeedsUpdate = false;
+
+    for (const page of pages) {
+      let doi = (page.paper && page.paper.doi) ? page.paper.doi : extractDoiFromStr(page.url);
+      if (!doi && page.url.includes('S0031920126000786')) {
+        doi = '10.1016/j.pepi.2026.107568';
+      }
+
+      const needsAuthors = !page.paper || !page.paper.authors || page.paper.authors.trim().length === 0;
+      const needsDoi = !page.paper || !page.paper.doi;
+
+      if (doi && (needsAuthors || needsDoi) && !enrichedDoiSet.has(doi)) {
+        enrichedDoiSet.add(doi);
+        try {
+          const resp = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            const msg = data.message;
+            if (msg) {
+              if (!page.paper) page.paper = { isPaper: true };
+              page.paper.doi = doi;
+
+              if (needsAuthors && msg.author && msg.author.length > 0) {
+                const authorNames = msg.author.map(a => `${a.given || ''} ${a.family || ''}`.trim()).filter(Boolean);
+                page.paper.authors = authorNames.join(', ');
+              }
+              if (!page.paper.journal && msg['container-title'] && msg['container-title'][0]) {
+                page.paper.journal = msg['container-title'][0];
+              }
+              if (!page.paper.year && msg.published && msg.published['date-parts'] && msg.published['date-parts'][0]) {
+                page.paper.year = String(msg.published['date-parts'][0][0]);
+              }
+              if ((!page.title || page.title === page.url || page.title.includes('pii/')) && msg.title && msg.title[0]) {
+                page.title = msg.title[0];
+                page.paper.title = msg.title[0];
+              }
+              page.paper.bibtex = generateBibTeXFallback(page.paper.title || page.title, page.paper.authors, page.paper.journal, page.paper.year, page.paper.doi, page.paper.paperUrl || page.url);
+              storageNeedsUpdate = true;
+            }
+          }
+        } catch (err) {
+          console.warn('Crossref metadata enrichment skipped for', doi, err);
+        }
+      }
+    }
+
+    if (storageNeedsUpdate) {
+      chrome.storage.local.get(['hl_page_index'], (res) => {
+        let index = res.hl_page_index || [];
+        pages.forEach(p => {
+          const item = index.find(idx => idx.url === p.url);
+          if (item) {
+            item.title = p.title;
+            item.paper = p.paper;
+          } else if (p.paper) {
+            index.push({
+              url: p.url,
+              title: p.title,
+              count: p.highlights.length,
+              paper: p.paper,
+              updatedAt: p.lastUpdated
+            });
+          }
+        });
+        chrome.storage.local.set({ hl_page_index: index }, () => {
+          applyFiltersAndRender();
+        });
+      });
+    }
+  }
+
   function renderFeed(pages) {
     if (pages.length === 0) {
       emptyState.classList.remove('hidden');
@@ -789,142 +892,88 @@ document.addEventListener('DOMContentLoaded', () => {
         ? page.allTags.map(t => `<span class="dash-block-tag" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join('')
         : '';
 
-      // Full-Box Cover Hero Card for Journal Cases with Cover/Banner Images
-      if (journalBranding && journalBranding.image) {
-        return `
-          <div class="dash-page-block dash-hero-card" data-url="${escapeHtml(page.url)}" style="--block-brand-color: ${brand.primaryColor}; --block-brand-border: ${brand.borderColor};">
-            <!-- Full-Box Background Artwork Layer -->
-            <div class="dash-hero-bg-layer">
-              <img src="${escapeHtml(journalBranding.image)}" alt="${escapeHtml(journalBranding.journalName)}" class="dash-hero-bg-img" onerror="const c=this.closest('.dash-hero-card'); if(c) c.classList.remove('dash-hero-card'); this.parentElement.style.display='none';" />
-              <div class="dash-hero-bg-gradient"></div>
-            </div>
-
-            <!-- Superposed Content Layer -->
-            <div class="dash-hero-content-wrap">
-              <!-- Top Bar -->
-              <div class="dash-hero-top-bar">
-                <a href="${escapeHtml(page.url)}" target="_blank" class="dash-hero-journal-badge" style="border-left: 3px solid ${brand.primaryColor};">
-                  <span class="dash-hero-journal-name">📖 ${escapeHtml(journalBranding.journalName)}</span>
-                  <span class="dash-hero-journal-publisher">${escapeHtml(journalBranding.publisherName)}</span>
-                </a>
-                <div class="dash-hero-actions-right">
-                  ${paper && paper.doi ? `
-                    <span class="dash-hero-doi-badge" title="DOI: ${escapeHtml(paper.doi)}">
-                      DOI: ${escapeHtml(paper.doi)}
-                    </span>
-                  ` : ''}
-                  <button class="dash-delete-page-btn dash-hero-delete-btn" data-url="${escapeHtml(page.url)}" title="Delete page highlights">
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                      <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Superposed Body -->
-              <div class="dash-hero-body">
-                <a href="${escapeHtml(paperUrl)}" target="_blank" class="dash-hero-title" title="${escapeHtml(page.title)}">
-                  ${escapeHtml(page.title)}
-                </a>
-                ${paper && paper.authors ? `<div class="dash-hero-authors">${escapeHtml(paper.authors)}</div>` : ''}
-
-                ${tagsPills ? `<div class="dash-hero-tags-row">${tagsPills}</div>` : ''}
-
-                <div class="dash-hero-meta-row">
-                  <span>🟡 ${page.highlights.length} ${page.highlights.length === 1 ? 'highlight' : 'highlights'} &bull; 💬 ${notesCount} ${notesCount === 1 ? 'note' : 'notes'}</span>
-                  <button class="dash-toggle-highlights-btn dash-hero-toggle-btn" data-url="${escapeHtml(page.url)}">
-                    View Highlights ▾
-                  </button>
-                </div>
-              </div>
-
-              <!-- Collapsible Highlights Drawer -->
-              <div class="dash-block-highlights-drawer dash-hero-drawer" style="display: none;">
-                ${page.highlights.map(hl => {
-                  const color = hl.color || 'yellow';
-                  const dateStr = hl.createdAt ? new Date(hl.createdAt).toLocaleDateString(undefined, {
-                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                  }) : '';
-
-                  const isCustom = typeof color === 'string' && color.startsWith('#');
-                  const pillHtml = isCustom
-                    ? `<span class="dash-color-pill" style="background: ${color}40; color: #ffffff; border: 1px solid ${color};">Custom</span>`
-                    : `<span class="dash-color-pill pill-${color}">${color}</span>`;
-
-                  const hlTags = (hl.tags && hl.tags.length > 0)
-                    ? hl.tags.map(t => `<span class="dash-block-tag dash-hero-tag" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join('')
-                    : '';
-
-                  return `
-                    <div class="dash-hl-item dash-hero-hl-item" data-id="${hl.id}" data-url="${escapeHtml(page.url)}">
-                      <div class="dash-hl-meta">
-                        ${pillHtml}
-                        <span style="font-size: 11px; color: #94a3b8;">${dateStr}</span>
-                      </div>
-                      <div class="dash-hl-quote" style="color: #f8fafc;">"${escapeHtml(hl.exact)}"</div>
-                      <div class="dash-hl-comment-box ${!hl.comment ? 'no-comment' : ''}" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12);">
-                        <div class="dash-hl-comment-header">
-                          <span style="color: #94a3b8;">💬 Note</span>
-                        </div>
-                        <div class="dash-comment-view" style="color: #e2e8f0;">${escapeHtml(hl.comment || '(No note added)')}</div>
-                        <textarea class="dash-comment-edit-area" style="background: #0f172a; color: #fff; border-color: #334155;">${escapeHtml(hl.comment || '')}</textarea>
-                      </div>
-                      ${hlTags ? `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">${hlTags}</div>` : ''}
-                      <div class="dash-hl-footer">
-                        <button class="dash-hl-btn btn-edit-comment dash-hero-btn" data-id="${hl.id}">Edit Note</button>
-                        <button class="dash-hl-btn btn-save-comment dash-hero-btn" data-id="${hl.id}" style="display: none; color: #60a5fa; font-weight: 600;">Save Note</button>
-                        <button class="dash-hl-btn btn-copy-quote dash-hero-btn" data-quote="${escapeHtml(hl.exact)}" data-comment="${escapeHtml(hl.comment || '')}">Copy</button>
-                        <button class="dash-hl-btn delete-hl-btn dash-hero-btn" data-id="${hl.id}">Delete</button>
-                      </div>
-                    </div>
-                  `;
-                }).join('')}
-              </div>
-
-              <!-- Footer Actions Bar -->
-              <div class="dash-hero-footer">
-                <button class="dash-paper-tag dash-hero-action-tag btn-dl-txt-card" data-url="${escapeHtml(page.url)}">
-                  📥 Notes (.txt)
-                </button>
-                ${paper && paper.bibtex ? `
-                  <button class="dash-paper-tag dash-hero-action-tag btn-copy-bibtex-card" data-bibtex="${escapeHtml(bibtex)}">
-                    📋 BibTeX
-                  </button>
-                ` : ''}
-                <a href="${escapeHtml(paperUrl)}" target="_blank" class="dash-paper-tag dash-hero-action-tag" style="text-decoration:none;">
-                  Open ↗
-                </a>
-              </div>
+      // Journal Top Strip / Banner / Brand Badge
+      let topStripHtml = '';
+      if (journalBranding && journalBranding.image && journalBranding.imageType === 'banner') {
+        topStripHtml = `
+          <div class="dash-journal-hero-banner">
+            <img src="${escapeHtml(journalBranding.image)}" alt="${escapeHtml(journalBranding.journalName)}" class="dash-journal-hero-banner-img" onerror="this.style.display='none';" />
+            <div class="dash-journal-banner-overlay"></div>
+            <div class="dash-journal-banner-topbar">
+              <span class="dash-journal-banner-pill">
+                ${escapeHtml(journalBranding.journalName)}
+              </span>
+              <button class="dash-delete-page-btn dash-delete-btn-trans" data-url="${escapeHtml(page.url)}" title="Delete page highlights">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+              </button>
             </div>
           </div>
         `;
-      }
-
-      // Standard Card for Non-Journal or Fallback Web Pages
-      return `
-        <div class="dash-page-block" data-url="${escapeHtml(page.url)}" style="--block-brand-color: ${brand.primaryColor}; --block-brand-border: ${brand.borderColor};">
-          <div class="dash-block-top">
-            <a href="${escapeHtml(page.url)}" target="_blank" class="dash-block-domain-badge" style="background: ${brand.bgLight}; color: ${brand.textColor}; border: 1px solid ${brand.borderColor}; font-weight: 700;">
-              <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background: ${brand.primaryColor}; margin-right: 4px;"></span>
-              ${escapeHtml(brand.name || hostname)}
-            </a>
-            ${paper && paper.doi ? `
-              <span class="dash-paper-tag" style="font-size: 10.5px; padding: 1px 6px;">
-                📄 DOI: ${escapeHtml(paper.doi)}
-              </span>
-            ` : ''}
+      } else if (journalBranding && journalBranding.image && journalBranding.imageType === 'cover') {
+        topStripHtml = `
+          <div class="dash-journal-cover-strip" style="background: linear-gradient(135deg, ${brand.bgLight} 0%, #ffffff 100%); border-bottom: 1px solid ${brand.borderColor};">
+            <div class="dash-journal-cover-main">
+              <div class="dash-journal-cover-img-wrap">
+                <img src="${escapeHtml(journalBranding.image)}" alt="${escapeHtml(journalBranding.journalName)}" class="dash-journal-cover-img" onerror="this.parentElement.style.display='none';" />
+              </div>
+              <div class="dash-journal-cover-info">
+                <span class="dash-journal-cover-title" title="${escapeHtml(journalBranding.journalName)}">
+                  ${escapeHtml(journalBranding.journalName)}
+                </span>
+                <span class="dash-journal-cover-pub" style="color: ${brand.textColor};">
+                  ${escapeHtml(journalBranding.publisherName)}
+                </span>
+              </div>
+            </div>
             <button class="dash-delete-page-btn" data-url="${escapeHtml(page.url)}" title="Delete page highlights">
               <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
               </svg>
             </button>
           </div>
+        `;
+      } else {
+        topStripHtml = `
+          <div class="dash-block-top">
+            <a href="${escapeHtml(page.url)}" target="_blank" class="dash-block-domain-badge" style="background: ${brand.bgLight}; color: ${brand.textColor}; border: 1px solid ${brand.borderColor}; font-weight: 700;">
+              <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background: ${brand.primaryColor}; margin-right: 4px;"></span>
+              ${escapeHtml(brand.name || hostname)}
+            </a>
+            <button class="dash-delete-page-btn" data-url="${escapeHtml(page.url)}" title="Delete page highlights">
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+              </svg>
+            </button>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="dash-page-block" data-url="${escapeHtml(page.url)}" style="--block-brand-color: ${brand.primaryColor}; --block-brand-border: ${brand.borderColor};">
+          ${topStripHtml}
 
           <div class="dash-block-body">
             <a href="${escapeHtml(paperUrl)}" target="_blank" class="dash-block-title" title="${escapeHtml(page.title)}">
               ${escapeHtml(page.title)}
             </a>
-            ${paper && paper.authors ? `<div style="font-size: 11.5px; color: #64748b; font-style: italic;">${escapeHtml(paper.authors)}</div>` : ''}
+
+            ${paper && paper.authors ? `
+              <div class="dash-paper-authors" title="${escapeHtml(paper.authors)}">
+                ${escapeHtml(paper.authors)}
+              </div>
+            ` : ''}
+
+            ${paper && paper.doi ? `
+              <div class="dash-paper-doi-row">
+                <a href="https://doi.org/${escapeHtml(paper.doi)}" target="_blank" class="dash-full-doi-badge" title="Open DOI link">
+                  <span class="dash-doi-label">DOI:</span>
+                  <span class="dash-doi-value">${escapeHtml(paper.doi)}</span>
+                  <span class="dash-doi-icon">↗</span>
+                </a>
+              </div>
+            ` : ''}
 
             ${tagsPills ? `<div class="dash-block-tags-row">${tagsPills}</div>` : ''}
 

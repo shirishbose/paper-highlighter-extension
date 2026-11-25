@@ -197,16 +197,23 @@
   async function init() {
     if (window.WebHighlighterPaperDetector) {
       detectedPaper = window.WebHighlighterPaperDetector.detectPaperMetadata();
-      // Asynchronous re-check to capture lazy-loaded journal cover/banner images
-      setTimeout(() => {
+      // Asynchronous re-checks to capture lazy-loaded journal cover/banner, authors & DOI
+      const checkFresh = () => {
         const fresh = window.WebHighlighterPaperDetector.detectPaperMetadata();
-        if (fresh && (!detectedPaper || !detectedPaper.journalImage) && fresh.journalImage) {
-          detectedPaper = fresh;
-          if (currentHighlights.length > 0) {
-            updatePageIndex(currentHighlights.length);
+        if (fresh) {
+          const hasNewImage = (!detectedPaper || !detectedPaper.journalImage) && fresh.journalImage;
+          const hasNewAuthors = (!detectedPaper || !detectedPaper.authors || detectedPaper.authors.length === 0) && fresh.authors && fresh.authors.length > 0;
+          const hasNewDoi = (!detectedPaper || !detectedPaper.doi) && fresh.doi;
+          if (hasNewImage || hasNewAuthors || hasNewDoi) {
+            detectedPaper = Object.assign({}, detectedPaper || {}, fresh);
+            if (currentHighlights.length > 0) {
+              updatePageIndex(currentHighlights.length);
+            }
           }
         }
-      }, 1000);
+      };
+      setTimeout(checkFresh, 1000);
+      setTimeout(checkFresh, 2500);
     }
 
     await loadExtensionState();
@@ -765,8 +772,11 @@
       return;
     }
 
-    if (!detectedPaper && window.WebHighlighterPaperDetector) {
-      detectedPaper = window.WebHighlighterPaperDetector.detectPaperMetadata();
+    if (window.WebHighlighterPaperDetector) {
+      const fresh = window.WebHighlighterPaperDetector.detectPaperMetadata();
+      if (fresh) {
+        detectedPaper = Object.assign({}, detectedPaper || {}, fresh);
+      }
     }
 
     const anchor = window.WebHighlighterAnchor.createAnchor(range, color, '', detectedPaper);

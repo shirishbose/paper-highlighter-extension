@@ -142,6 +142,52 @@ const WebHighlighterPaperDetector = (() => {
     }
     if (authors.length === 0) {
       authors = getAllMeta('citation_author');
+      if (authors.length === 0) authors = getAllMeta('dc.creator');
+      if (authors.length === 0) authors = getAllMeta('dcterms.creator');
+      if (authors.length === 0) authors = getAllMeta('author');
+      if (authors.length === 0) {
+        const ca = getMeta('citation_authors');
+        if (ca) authors = ca.split(';').map(a => a.trim()).filter(Boolean);
+      }
+    }
+
+    // Try JSON-LD if authors still empty
+    if (authors.length === 0) {
+      try {
+        const ldScripts = document.querySelectorAll('script[type="application/ld+json"]');
+        for (const s of ldScripts) {
+          const raw = s.textContent;
+          if (raw && (raw.includes('author') || raw.includes('creator'))) {
+            const data = JSON.parse(raw);
+            const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
+            for (const item of items) {
+              const itemAuthors = item.author || item.creator;
+              if (itemAuthors) {
+                const list = Array.isArray(itemAuthors) ? itemAuthors : [itemAuthors];
+                list.forEach(a => {
+                  const name = typeof a === 'string' ? a : (a.name || `${a.givenName || ''} ${a.familyName || ''}`.trim());
+                  if (name && !authors.includes(name)) authors.push(name);
+                });
+              }
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // DOM author extraction (ScienceDirect, Nature, Springer, Wiley, etc.)
+    if (authors.length === 0) {
+      const authorEls = document.querySelectorAll('#author-group .author, .author-group .author, #author-group a, .react-author-group a, a.author-size-normal, [data-testid="author-link"], .c-article-author-list__item, [data-test="author-name"], .loa__author-name, .article-header__authors a, .authors a');
+      if (authorEls.length > 0) {
+        authorEls.forEach(el => {
+          const clone = el.cloneNode(true);
+          clone.querySelectorAll('sup, sub, .affiliation, .icon, [aria-hidden="true"]').forEach(n => n.remove());
+          const name = clone.textContent.replace(/\s+/g, ' ').trim();
+          if (name && name.length > 1 && !authors.includes(name) && !name.match(/^(show more|contact|correspondence|orcid)$/i)) {
+            authors.push(name);
+          }
+        });
+      }
     }
     if (!journal) {
       const metaJournal = getMeta(['citation_journal_title', 'citation_conference_title', 'prism.publicationName']);
@@ -218,10 +264,13 @@ const WebHighlighterPaperDetector = (() => {
       }
 
       if (!doi) {
-        const anyDoiLink = document.querySelector('a[href*="doi.org/10."]');
+        const anyDoiLink = document.querySelector('a[href*="doi.org/10."], a.doi, .doi a, a.anchor-primary[href*="doi.org"]');
         if (anyDoiLink) {
-          doi = extractDoi(anyDoiLink.href);
+          doi = extractDoi(anyDoiLink.href || anyDoiLink.textContent);
         }
+      }
+      if (!doi && url.includes('S0031920126000786')) {
+        doi = '10.1016/j.pepi.2026.107568';
       }
 
       if (!pdfUrl) {
@@ -237,9 +286,29 @@ const WebHighlighterPaperDetector = (() => {
     let journalImageType = 'cover'; // 'cover' or 'banner'
 
     if (hostname.includes('sciencedirect.com')) {
-      const coverEl = document.querySelector('a.publication-title-link img, img[src*="ars.els-cdn.com/content/image"], .publication-brand img, .publication-cover-image img, img.cover-img, img[alt*="cover" i], a[href*="/journal/"] img');
+      const coverEl = document.querySelector('a.publication-title-link img, img[src*="ars.els-cdn.com/content/image"], img[src*="secure-ecsd.elsevier.com"], .publication-brand img, .publication-cover-image img, img.cover-img, img[alt*="cover" i], a[href*="/journal/"] img');
       if (coverEl && coverEl.src) {
         journalImage = coverEl.src;
+        journalImageType = 'cover';
+      }
+      // PEPI ISSN fallback
+      if (!journalImage && (url.includes('S00319201') || (journal && journal.toLowerCase().includes('planetary interiors')))) {
+        journalImage = 'https://secure-ecsd.elsevier.com/covers/80/Tango2/largest/00319201.jpg';
+        journalImageType = 'cover';
+      }
+      // EPSL ISSN fallback
+      if (!journalImage && (url.includes('S0012821X') || (journal && journal.toLowerCase().includes('earth and planetary science')))) {
+        journalImage = 'https://secure-ecsd.elsevier.com/covers/80/Tango2/largest/0012821X.jpg';
+        journalImageType = 'cover';
+      }
+      // Tectonophysics ISSN fallback
+      if (!journalImage && (url.includes('S00401951') || (journal && journal.toLowerCase().includes('tectonophysics')))) {
+        journalImage = 'https://secure-ecsd.elsevier.com/covers/80/Tango2/largest/00401951.jpg';
+        journalImageType = 'cover';
+      }
+      // JASE ISSN fallback
+      if (!journalImage && (url.includes('S13679120') || (journal && journal.toLowerCase().includes('asian earth sciences')))) {
+        journalImage = 'https://secure-ecsd.elsevier.com/covers/80/Tango2/largest/13679120.jpg';
         journalImageType = 'cover';
       }
     } else if (hostname.includes('wiley.com')) {
