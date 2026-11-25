@@ -2,6 +2,40 @@
 
 (() => {
   if (window.__webHighlighterInjected) return;
+
+  // Strict Bot-Challenge & Verification Frame Safety Guard
+  // Ensures the extension remains 100% inert during ScienceDirect/Cloudflare "Are you a robot" checks
+  function isBotChallengeContext() {
+    try {
+      const url = (window.location.href || '').toLowerCase();
+      const host = (window.location.hostname || '').toLowerCase();
+      const title = (document.title || '').toLowerCase();
+
+      const challengeMarkers = [
+        'challenges.cloudflare.com',
+        'turnstile',
+        'recaptcha',
+        'hcaptcha',
+        'perimeterx',
+        'px-cloud',
+        '/challenge',
+        '/verification',
+        'bot-defense',
+        'arkoselabs'
+      ];
+
+      if (challengeMarkers.some(m => url.includes(m) || host.includes(m))) return true;
+      if (title.includes('are you a robot') || title.includes('just a moment') || title.includes('security check')) return true;
+    } catch (e) {
+      return false;
+    }
+    return false;
+  }
+
+  if (isBotChallengeContext()) {
+    return; // Completely inert on verification pages and nested challenge iframes
+  }
+
   window.__webHighlighterInjected = true;
 
   console.log("[Web Highlighter] Extension active on:", window.location.href);

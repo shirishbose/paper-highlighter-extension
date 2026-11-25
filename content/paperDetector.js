@@ -1,6 +1,14 @@
 // paperDetector.js - Extract academic paper links, Google Scholar citations, and metadata
 
 const WebHighlighterPaperDetector = (() => {
+  // If running on a verification or challenge frame, abort immediately
+  try {
+    const url = (window.location.href || '').toLowerCase();
+    const title = (document.title || '').toLowerCase();
+    if (url.includes('challenges.cloudflare.com') || url.includes('recaptcha') || url.includes('/verification') || title.includes('are you a robot')) {
+      return { detectPaperMetadata: () => null, generateBibTeX: () => '' };
+    }
+  } catch (e) {}
   // Extract DOI from string
   function extractDoi(str) {
     if (!str) return '';
