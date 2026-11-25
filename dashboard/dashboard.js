@@ -590,7 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isJournal: true,
         journalName: 'Tectonophysics',
         publisherName: 'ScienceDirect / Elsevier',
-        image: (paper && paper.journalImage) ? paper.journalImage : 'https://ars.els-cdn.com/content/image/1-s2.0-S00401951-cov200h.gif',
+        image: (paper && paper.journalImage) ? paper.journalImage : '',
         imageType: 'cover',
         primaryColor: '#f97316',
         bgLight: '#fff7ed',
@@ -599,17 +599,34 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
-    // 7. Nature / Nature Geoscience
+    // 7. Nature Portfolio & Nature Geoscience
     if (
-      rawUrl.includes('nature.com') || jName.includes('nature')
+      rawUrl.includes('nature.com') || jName.includes('nature') || doi.includes('10.1038/') ||
+      rawUrl.includes('s41561') || rawUrl.includes('/ngeo')
     ) {
-      const isGeoscience = jName.includes('geoscience') || rawUrl.includes('/ngeo');
+      const isGeoscience = jName.includes('geoscience') || rawUrl.includes('/ngeo') || rawUrl.includes('s41561') || doi.includes('s41561');
+      const isNatureComm = jName.includes('communications') || rawUrl.includes('s41467') || doi.includes('s41467');
+      const isCommEarth = jName.includes('earth & environment') || rawUrl.includes('s43247') || doi.includes('s43247');
+
+      let natureImg = 'https://media.springernature.com/w440/springer-static/cover-hires/journal/41586';
+      let jTitle = 'Nature';
+      if (isGeoscience) {
+        natureImg = 'https://media.springernature.com/w440/springer-static/cover-hires/journal/41561';
+        jTitle = 'Nature Geoscience';
+      } else if (isNatureComm) {
+        natureImg = 'https://media.springernature.com/w440/springer-static/cover-hires/journal/41467';
+        jTitle = 'Nature Communications';
+      } else if (isCommEarth) {
+        natureImg = 'https://media.springernature.com/w440/springer-static/cover-hires/journal/43247';
+        jTitle = 'Communications Earth & Environment';
+      }
+
       return {
         isJournal: true,
-        journalName: isGeoscience ? 'Nature Geoscience' : 'Nature',
+        journalName: jTitle,
         publisherName: 'Springer Nature',
-        image: 'https://media.springernature.com/full/springer-static/image/art%3A10.1038%2Fngeo/MediaObjects/ngeo_logo.png',
-        imageType: 'banner',
+        image: (paper && paper.journalImage && !paper.journalImage.includes('favicon')) ? paper.journalImage : natureImg,
+        imageType: 'cover',
         primaryColor: '#dc2626',
         bgLight: '#fef2f2',
         borderColor: '#fca5a5',
@@ -617,13 +634,47 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
-    // 8. Bulletin of the Seismological Society of America (BSSA)
+    // 8. PEPS - Progress in Earth and Planetary Science (SpringerOpen / JpGU)
+    if (
+      rawUrl.includes('s40645') || jName.includes('progress in earth and planetary') || jName.includes('peps') || doi.includes('s40645')
+    ) {
+      return {
+        isJournal: true,
+        journalName: 'PEPS (Progress in Earth & Planetary Science)',
+        publisherName: 'SpringerOpen / JpGU',
+        image: (paper && paper.journalImage) ? paper.journalImage : 'https://media.springernature.com/w440/springer-static/cover-hires/journal/40645',
+        imageType: 'cover',
+        primaryColor: '#0284c7',
+        bgLight: '#f0f9ff',
+        borderColor: '#bae6fd',
+        textColor: '#0369a1'
+      };
+    }
+
+    // 9. JASE - Journal of Asian Earth Sciences (Elsevier / ScienceDirect)
+    if (
+      rawUrl.includes('s13679120') || rawUrl.includes('1367-9120') || jName.includes('asian earth sciences') || jName.includes('jase') || doi.includes('j.jseaes')
+    ) {
+      return {
+        isJournal: true,
+        journalName: 'Journal of Asian Earth Sciences',
+        publisherName: 'ScienceDirect / Elsevier',
+        image: (paper && paper.journalImage) ? paper.journalImage : '',
+        imageType: 'cover',
+        primaryColor: '#f97316',
+        bgLight: '#fff7ed',
+        borderColor: '#fdba74',
+        textColor: '#c2410c'
+      };
+    }
+
+    // 10. Bulletin of the Seismological Society of America (BSSA)
     if (jName.includes('bssa') || jName.includes('seismological society of america') || rawUrl.includes('/bssa/')) {
       return {
         isJournal: true,
         journalName: 'BSSA',
         publisherName: 'SSA / GeoScienceWorld',
-        image: 'https://pubs.geoscienceworld.org/data/Journals/bssa/journal_issue_covers.png',
+        image: (paper && paper.journalImage) ? paper.journalImage : 'https://pubs.geoscienceworld.org/data/Journals/bssa/journal_issue_covers.png',
         imageType: 'cover',
         primaryColor: '#1e3a8a',
         bgLight: '#eff6ff',
@@ -632,7 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
-    // 9. arXiv
+    // 11. arXiv
     if (rawUrl.includes('arxiv.org') || (paper && paper.arxivId)) {
       return {
         isJournal: true,
@@ -647,7 +698,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
-    // 10. Any other paper with an extracted journalImage from DOM
+    // 12. Any other paper with an extracted journalImage from DOM
     if (paper && paper.journalImage) {
       const pubBrand = getWebsiteBrand(url);
       return {
@@ -663,13 +714,13 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
-    // 11. Generic ScienceDirect paper fallback
+    // 13. Generic ScienceDirect paper fallback
     if (rawUrl.includes('sciencedirect.com')) {
       return {
         isJournal: true,
         journalName: paper?.journal || 'ScienceDirect Article',
         publisherName: 'Elsevier ScienceDirect',
-        image: '',
+        image: (paper && paper.journalImage) ? paper.journalImage : '',
         imageType: 'cover',
         primaryColor: '#f97316',
         bgLight: '#fff7ed',
@@ -678,13 +729,13 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
-    // 12. Generic Wiley paper fallback
+    // 14. Generic Wiley paper fallback
     if (rawUrl.includes('wiley.com')) {
       return {
         isJournal: true,
         journalName: paper?.journal || 'Wiley Online Library',
         publisherName: 'Wiley Academic',
-        image: '',
+        image: (paper && paper.journalImage) ? paper.journalImage : '',
         imageType: 'banner',
         primaryColor: '#7c3aed',
         bgLight: '#faf5ff',
@@ -693,13 +744,13 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
-    // 13. Other academic paper
+    // 15. Other academic paper
     const pubBrand = getWebsiteBrand(url);
     return {
       isJournal: true,
       journalName: paper?.journal || 'Research Paper',
       publisherName: pubBrand.name || 'Academic Publisher',
-      image: '',
+      image: (paper && paper.journalImage) ? paper.journalImage : '',
       imageType: 'cover',
       primaryColor: pubBrand.primaryColor,
       bgLight: pubBrand.bgLight,
@@ -738,67 +789,120 @@ document.addEventListener('DOMContentLoaded', () => {
         ? page.allTags.map(t => `<span class="dash-block-tag" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join('')
         : '';
 
-      let topStripHtml = '';
+      // Full-Box Cover Hero Card for Journal Cases with Cover/Banner Images
+      if (journalBranding && journalBranding.image) {
+        return `
+          <div class="dash-page-block dash-hero-card" data-url="${escapeHtml(page.url)}" style="--block-brand-color: ${brand.primaryColor}; --block-brand-border: ${brand.borderColor};">
+            <!-- Full-Box Background Artwork Layer -->
+            <div class="dash-hero-bg-layer">
+              <img src="${escapeHtml(journalBranding.image)}" alt="${escapeHtml(journalBranding.journalName)}" class="dash-hero-bg-img" onerror="const c=this.closest('.dash-hero-card'); if(c) c.classList.remove('dash-hero-card'); this.parentElement.style.display='none';" />
+              <div class="dash-hero-bg-gradient"></div>
+            </div>
 
-      if (journalBranding && journalBranding.image && journalBranding.imageType === 'banner') {
-        // Wide Edge-to-Edge Hero Banner Strip (Wiley AGU, Nature, arXiv)
-        topStripHtml = `
-          <div class="dash-journal-hero-banner">
-            <img src="${escapeHtml(journalBranding.image)}" alt="${escapeHtml(journalBranding.journalName)}" class="dash-journal-hero-banner-img" onerror="this.style.display='none';" />
-            <div class="dash-journal-banner-overlay"></div>
-            <div class="dash-journal-banner-topbar">
-              <span class="dash-journal-banner-pill">
-                📖 ${escapeHtml(journalBranding.journalName)}
-              </span>
-              <div class="dash-journal-strip-actions">
-                ${paper && paper.doi ? `
-                  <span class="dash-journal-doi-badge-dark" title="DOI: ${escapeHtml(paper.doi)}">
-                    DOI: ${escapeHtml(paper.doi)}
-                  </span>
-                ` : ''}
-                <button class="dash-delete-page-btn dash-delete-btn-trans" data-url="${escapeHtml(page.url)}" title="Delete page highlights">
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                  </svg>
+            <!-- Superposed Content Layer -->
+            <div class="dash-hero-content-wrap">
+              <!-- Top Bar -->
+              <div class="dash-hero-top-bar">
+                <a href="${escapeHtml(page.url)}" target="_blank" class="dash-hero-journal-badge" style="border-left: 3px solid ${brand.primaryColor};">
+                  <span class="dash-hero-journal-name">📖 ${escapeHtml(journalBranding.journalName)}</span>
+                  <span class="dash-hero-journal-publisher">${escapeHtml(journalBranding.publisherName)}</span>
+                </a>
+                <div class="dash-hero-actions-right">
+                  ${paper && paper.doi ? `
+                    <span class="dash-hero-doi-badge" title="DOI: ${escapeHtml(paper.doi)}">
+                      DOI: ${escapeHtml(paper.doi)}
+                    </span>
+                  ` : ''}
+                  <button class="dash-delete-page-btn dash-hero-delete-btn" data-url="${escapeHtml(page.url)}" title="Delete page highlights">
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Superposed Body -->
+              <div class="dash-hero-body">
+                <a href="${escapeHtml(paperUrl)}" target="_blank" class="dash-hero-title" title="${escapeHtml(page.title)}">
+                  ${escapeHtml(page.title)}
+                </a>
+                ${paper && paper.authors ? `<div class="dash-hero-authors">${escapeHtml(paper.authors)}</div>` : ''}
+
+                ${tagsPills ? `<div class="dash-hero-tags-row">${tagsPills}</div>` : ''}
+
+                <div class="dash-hero-meta-row">
+                  <span>🟡 ${page.highlights.length} ${page.highlights.length === 1 ? 'highlight' : 'highlights'} &bull; 💬 ${notesCount} ${notesCount === 1 ? 'note' : 'notes'}</span>
+                  <button class="dash-toggle-highlights-btn dash-hero-toggle-btn" data-url="${escapeHtml(page.url)}">
+                    View Highlights ▾
+                  </button>
+                </div>
+              </div>
+
+              <!-- Collapsible Highlights Drawer -->
+              <div class="dash-block-highlights-drawer dash-hero-drawer" style="display: none;">
+                ${page.highlights.map(hl => {
+                  const color = hl.color || 'yellow';
+                  const dateStr = hl.createdAt ? new Date(hl.createdAt).toLocaleDateString(undefined, {
+                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                  }) : '';
+
+                  const isCustom = typeof color === 'string' && color.startsWith('#');
+                  const pillHtml = isCustom
+                    ? `<span class="dash-color-pill" style="background: ${color}40; color: #ffffff; border: 1px solid ${color};">Custom</span>`
+                    : `<span class="dash-color-pill pill-${color}">${color}</span>`;
+
+                  const hlTags = (hl.tags && hl.tags.length > 0)
+                    ? hl.tags.map(t => `<span class="dash-block-tag dash-hero-tag" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join('')
+                    : '';
+
+                  return `
+                    <div class="dash-hl-item dash-hero-hl-item" data-id="${hl.id}" data-url="${escapeHtml(page.url)}">
+                      <div class="dash-hl-meta">
+                        ${pillHtml}
+                        <span style="font-size: 11px; color: #94a3b8;">${dateStr}</span>
+                      </div>
+                      <div class="dash-hl-quote" style="color: #f8fafc;">"${escapeHtml(hl.exact)}"</div>
+                      <div class="dash-hl-comment-box ${!hl.comment ? 'no-comment' : ''}" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12);">
+                        <div class="dash-hl-comment-header">
+                          <span style="color: #94a3b8;">💬 Note</span>
+                        </div>
+                        <div class="dash-comment-view" style="color: #e2e8f0;">${escapeHtml(hl.comment || '(No note added)')}</div>
+                        <textarea class="dash-comment-edit-area" style="background: #0f172a; color: #fff; border-color: #334155;">${escapeHtml(hl.comment || '')}</textarea>
+                      </div>
+                      ${hlTags ? `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">${hlTags}</div>` : ''}
+                      <div class="dash-hl-footer">
+                        <button class="dash-hl-btn btn-edit-comment dash-hero-btn" data-id="${hl.id}">Edit Note</button>
+                        <button class="dash-hl-btn btn-save-comment dash-hero-btn" data-id="${hl.id}" style="display: none; color: #60a5fa; font-weight: 600;">Save Note</button>
+                        <button class="dash-hl-btn btn-copy-quote dash-hero-btn" data-quote="${escapeHtml(hl.exact)}" data-comment="${escapeHtml(hl.comment || '')}">Copy</button>
+                        <button class="dash-hl-btn delete-hl-btn dash-hero-btn" data-id="${hl.id}">Delete</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+
+              <!-- Footer Actions Bar -->
+              <div class="dash-hero-footer">
+                <button class="dash-paper-tag dash-hero-action-tag btn-dl-txt-card" data-url="${escapeHtml(page.url)}">
+                  📥 Notes (.txt)
                 </button>
+                ${paper && paper.bibtex ? `
+                  <button class="dash-paper-tag dash-hero-action-tag btn-copy-bibtex-card" data-bibtex="${escapeHtml(bibtex)}">
+                    📋 BibTeX
+                  </button>
+                ` : ''}
+                <a href="${escapeHtml(paperUrl)}" target="_blank" class="dash-paper-tag dash-hero-action-tag" style="text-decoration:none;">
+                  Open ↗
+                </a>
               </div>
             </div>
           </div>
         `;
-      } else if (journalBranding && journalBranding.image && journalBranding.imageType === 'cover') {
-        // Journal Cover Thumbnail & Title Strip (ScienceDirect EPSL, GJI, Tectonophysics)
-        topStripHtml = `
-          <div class="dash-journal-cover-strip" style="background: linear-gradient(135deg, ${brand.bgLight} 0%, #ffffff 100%); border-bottom: 1px solid ${brand.borderColor};">
-            <div class="dash-journal-cover-main">
-              <div class="dash-journal-cover-img-wrap">
-                <img src="${escapeHtml(journalBranding.image)}" alt="${escapeHtml(journalBranding.journalName)}" class="dash-journal-cover-img" onerror="this.parentElement.style.display='none';" />
-              </div>
-              <div class="dash-journal-cover-info">
-                <span class="dash-journal-cover-title" title="${escapeHtml(journalBranding.journalName)}">
-                  ${escapeHtml(journalBranding.journalName)}
-                </span>
-                <span class="dash-journal-cover-pub" style="color: ${brand.textColor};">
-                  ${escapeHtml(journalBranding.publisherName)}
-                </span>
-              </div>
-            </div>
-            <div class="dash-journal-strip-actions">
-              ${paper && paper.doi ? `
-                <span class="dash-journal-doi-badge" title="DOI: ${escapeHtml(paper.doi)}">
-                  📄 DOI
-                </span>
-              ` : ''}
-              <button class="dash-delete-page-btn" data-url="${escapeHtml(page.url)}" title="Delete page highlights">
-                <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        `;
-      } else {
-        // Standard Webpage Top Strip
-        topStripHtml = `
+      }
+
+      // Standard Card for Non-Journal or Fallback Web Pages
+      return `
+        <div class="dash-page-block" data-url="${escapeHtml(page.url)}" style="--block-brand-color: ${brand.primaryColor}; --block-brand-border: ${brand.borderColor};">
           <div class="dash-block-top">
             <a href="${escapeHtml(page.url)}" target="_blank" class="dash-block-domain-badge" style="background: ${brand.bgLight}; color: ${brand.textColor}; border: 1px solid ${brand.borderColor}; font-weight: 700;">
               <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background: ${brand.primaryColor}; margin-right: 4px;"></span>
@@ -815,12 +919,6 @@ document.addEventListener('DOMContentLoaded', () => {
               </svg>
             </button>
           </div>
-        `;
-      }
-
-      return `
-        <div class="dash-page-block" data-url="${escapeHtml(page.url)}" style="--block-brand-color: ${brand.primaryColor}; --block-brand-border: ${brand.borderColor};">
-          ${topStripHtml}
 
           <div class="dash-block-body">
             <a href="${escapeHtml(paperUrl)}" target="_blank" class="dash-block-title" title="${escapeHtml(page.title)}">

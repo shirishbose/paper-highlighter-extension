@@ -254,11 +254,28 @@ const WebHighlighterPaperDetector = (() => {
           journalImageType = 'cover';
         }
       }
-    } else if (hostname.includes('nature.com') || hostname.includes('springer.com')) {
-      const el = document.querySelector('.c-journal-header img, header .c-header__logo img, .c-article-header__logo img, img[class*="cover"], img[src*="nature.com"]');
-      if (el && el.src) {
-        journalImage = el.src;
-        journalImageType = (el.classList && el.classList.contains('c-journal-header')) || el.src.includes('banner') ? 'banner' : 'cover';
+    } else if (hostname.includes('nature.com') || hostname.includes('springer.com') || hostname.includes('springeropen.com')) {
+      // Direct high-res journal covers for Nature Portfolio
+      if (url.includes('s41561') || url.includes('/ngeo') || (journal && journal.toLowerCase().includes('nature geoscience'))) {
+        journalImage = 'https://media.springernature.com/w440/springer-static/cover-hires/journal/41561';
+        journalImageType = 'cover';
+      } else if (url.includes('s41586') || (journal && journal.toLowerCase() === 'nature')) {
+        journalImage = 'https://media.springernature.com/w440/springer-static/cover-hires/journal/41586';
+        journalImageType = 'cover';
+      } else if (url.includes('s41467') || (journal && journal.toLowerCase().includes('nature communications'))) {
+        journalImage = 'https://media.springernature.com/w440/springer-static/cover-hires/journal/41467';
+        journalImageType = 'cover';
+      } else if (url.includes('s43247') || (journal && journal.toLowerCase().includes('communications earth'))) {
+        journalImage = 'https://media.springernature.com/w440/springer-static/cover-hires/journal/43247';
+        journalImageType = 'cover';
+      }
+
+      if (!journalImage) {
+        const el = document.querySelector('.c-journal-header img, header .c-header__logo img, picture.c-header__logo img, .c-article-header picture img, .c-article-header__logo img, img[class*="cover"], img[src*="cover-hires"], img[src*="springer-static"]');
+        if (el && el.src) {
+          journalImage = el.src;
+          journalImageType = 'cover';
+        }
       }
     } else if (hostname.includes('oup.com')) {
       const el = document.querySelector('.widget-IssueCover img, img[src*="journal_issue_covers"], .al-header-logo img, .journal-logo img');
